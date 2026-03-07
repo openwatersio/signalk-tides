@@ -22,6 +22,7 @@ import { approximateTideHeightAt } from "./calculations.js";
 import FileCache from "./cache.js";
 import createSources from "./sources/index.js";
 import { createAdapterRoutes } from "./routes.js";
+import { withVesselPosition } from "./middleware.js";
 
 export default function (app: SignalKApp): Plugin {
   // Interval to update tide data
@@ -104,12 +105,12 @@ export default function (app: SignalKApp): Plugin {
     if (source.id === "neaps") {
       const neapsRoutes = createRoutes({ prefix: MOUNT_PATH });
       // Cast needed: @neaps/api bundles its own Express types that conflict with local ones
-      activeRouter = withDefaultPosition(
+      activeRouter = withVesselPosition(
         neapsRoutes as unknown as RequestHandler,
         getDefaultPosition,
       );
     } else {
-      activeRouter = withDefaultPosition(
+      activeRouter = withVesselPosition(
         createAdapterRoutes(provider),
         getDefaultPosition,
       );
@@ -225,23 +226,6 @@ export default function (app: SignalKApp): Plugin {
     delay(4000).then(updatePosition);
     // Update every minute
     setInterval(updateTides, 60 * 1000);
-  }
-
-  /** Middleware that injects default position into query when not provided */
-  function withDefaultPosition(
-    router: RequestHandler,
-    getPosition: () => Position | null,
-  ): RequestHandler {
-    return (req, res, next) => {
-      if (!req.query.latitude && !req.query.longitude) {
-        const pos = getPosition();
-        if (pos) {
-          req.query.latitude = String(pos.latitude);
-          req.query.longitude = String(pos.longitude);
-        }
-      }
-      router(req, res, next);
-    };
   }
 
   function delay(time: number) {

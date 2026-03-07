@@ -1,85 +1,24 @@
 @import "tailwindcss";
+@source "../node_modules/@neaps/react/dist";
+@import "@neaps/react/styles.css";
 
 :root {
   color-scheme: dark;
-  font-weight: 400;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 html {
-  background: linear-gradient(rgb(2, 75, 102), rgb(0, 20, 30));
+  background: linear-gradient(
+    var(--neaps-bg),
+    color-mix(in srgb, var(--neaps-bg) 50%, #000)
+  );
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-}
-
-.TideChart {
-  width: 100vw;
-  overflow-x: auto;
-  overflow-y: hidden;
-  flex: 1;
-}
-
-.TideChart__Gradient--stop1 {
-  stop-color: rgba(56, 143, 202, 0.5);
-}
-.TideChart__Gradient--stop2 {
-  stop-color: rgba(56, 143, 202, 0);
-}
-
-.TideChart__Line {
-  fill: none;
-  stroke: rgba(80, 190, 255, 1);
-  stroke-width: 3;
-}
-
-.TideChart__DataPoint {
-  fill: rgb(2, 75, 102);
-  stroke: white;
-  stroke-width: 3;
-}
-
-.TideChart__Text {
-  fill: rgba(255, 255, 255, 0.9);
-  font-weight: bold;
-  text-anchor: middle;
-}
-
-.TideChart__Text--High {
-  alignment-baseline: hanging;
-}
-.TideChart__Text--Low {
-  alignment-baseline: bottom;
-}
-
-.TideChart__Depth {
-  opacity: 0.8;
-}
-
-.TideChart__XAxis {
-  opacity: 0.3;
-}
-
-.TideChart__XAxis .tick {
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.TideChart__LowWater {
-  stroke: rgba(255, 255, 255, 0.25);
-  stroke-width: 3;
-  stroke-dasharray: 1, 6;
-  stroke-linecap: round;
-}
-
-.TideChart__Now {
-  stroke: rgba(180, 50, 50, 0.8);
-  stroke-linecap: round;
-  stroke-width: 4;
 }
 
 .Position {
