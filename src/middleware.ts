@@ -49,7 +49,7 @@ export function withVesselPosition(
 
         // HTTP 303 See Other: indicates the response to the request can be found under a different URI
         return res.redirect(303, redirectUrl);
-      } catch (error) {
+      } catch {
         return res.status(500).json({
           message: "Failed to find nearest station",
         });
