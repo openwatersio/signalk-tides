@@ -37,3 +37,22 @@ jobs:
 
       - name: Run build
         run: npm run build
+
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+
+      - name: Install modules
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to pkg.pr.new
+        run: npx pkg-pr-new publish
