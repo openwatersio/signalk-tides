@@ -20,8 +20,8 @@ jobs:
       - name: Run linter
         run: npm run lint
 
-  build:
-    name: Build
+  test:
+    name: Test
     runs-on: ubuntu-latest
     env:
       CI: true
@@ -37,6 +37,9 @@ jobs:
 
       - name: Run build
         run: npm run build
+
+      - name: Run Tests
+        run: npm run test
 
   publish:
     runs-on: ubuntu-latest
