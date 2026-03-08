@@ -1,6 +1,6 @@
 @import "tailwindcss";
-@source "../node_modules/@neaps/react/dist";
 @import "@neaps/react/styles.css";
+@source "../node_modules/@neaps/react/dist";
 
 :root {
   color-scheme: dark;

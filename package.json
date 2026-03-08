@@ -11,10 +11,10 @@
     "lint": "eslint .",
     "prepack": "npm run build",
     "preview": "vite preview",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:run": "vitest run",
-    "coverage": "vitest --coverage"
+    "test": "npm run test:node && npm run test:browser",
+    "test:node": "vitest run --config vitest.config.node.ts",
+    "test:browser": "vitest run --config vitest.config.browser.ts",
+    "test:run": "npm run test:node && npm run test:browser"
   },
   "keywords": [
     "signalk-webapp",
@@ -66,6 +66,7 @@
     "globals": "^17.4.0",
     "jsdom": "^28.1.0",
     "maplibre-gl": "^5.19.0",
+    "nock": "^14.0.11",
     "pkg-pr-new": "^0.0.65",
     "playwright": "^1.58.2",
     "react-map-gl": "^8.1.0",

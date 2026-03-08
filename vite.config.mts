@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import tideDevServerPlugin from "./vite-plugin-tides-dev.js";
+import { tidesDevServerPlugin } from './tides-dev-server.js'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -13,5 +13,5 @@ export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom']
   },
-  plugins: [tailwindcss(), react(), tideDevServerPlugin()],
+  plugins: [tailwindcss(), react(), tidesDevServerPlugin()],
 });
