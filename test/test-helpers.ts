@@ -3,18 +3,14 @@ import type { SignalKApp } from '../src/types.js';
 
 /**
  * Create a mock SignalK app for testing
- *
- * @param includeConfig - Whether to include config.configPath (required for NOAA source)
  */
-export function createMockSignalKApp(includeConfig = false): SignalKApp {
-  const app = {
+export function createMockSignalKApp(dataDir = '/tmp/test-data'): SignalKApp {
+  return {
     debug: vi.fn(),
-    getDataDirPath: () => '/tmp/test-data',
-  } as any;
-
-  if (includeConfig) {
-    app.config = { configPath: '/tmp/test-config' };
-  }
-
-  return app as SignalKApp;
+    error: vi.fn(),
+    setPluginError: vi.fn(),
+    setPluginStatus: vi.fn(),
+    getDataDirPath: () => dataDir,
+    config: { configPath: '/tmp/test-config' },
+  } as unknown as SignalKApp;
 }

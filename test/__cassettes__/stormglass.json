@@ -1,0 +1,22 @@
+[
+  {
+    "scope": "https://api.stormglass.io:443",
+    "method": "GET",
+    "path": "/v2/tide/extremes/point?start=2025-01-01&end=2025-01-08&lat=37.7749&lng=-122.4194",
+    "body": "",
+    "status": 200,
+    "response": [
+      "1b690911d59a9300741ed8ced1b6a625c1b4874ec755d1a2f9293c7b1144b1ad546f36631a3a24224944ff551aa988972ecd643d7e8ee0b60ecb5bdf5660e9eae3d39faa2fdda0052b49301f2443a473e0f43da838813648ad57ecf53cda89350df59eea5cbb310e8897840cddd5c3c4fc9f9b3ed23fe5fb166a7d75d8e96c63b84e7d7e36ff0a2c30bfa85fd41ff86a1ef00f78c04f14f11e18f7f0528e19dfb0d07d92dcd4f655a8ddb363efb4681935b810e78c41eb90b944ae7cd347cc9893198fb5abaa1262a294a7e305b446a372b3390461a3808498b952d1b78237e1550a8f358893742f6e320860a3528fd7f8de5989403a1760076dde9c24a733a5e9db598f8ca85f4fae34a6c31fd6d5f27a6c1291a195bc3485609d5b40887c507672bbaad334a71b9011f50402dd435f78a55c870df0ab308645b929879e026c443d99c65acc353da943356011fd28034c7a4f64cb23c046f0b129b852b7ad4e8b366d519e658cf7ba35ac2e6b1d3182af4493b67cf4b434ee0282917f241fe30a3747ae21faf5441abebbc719fb66724899e9a13fcfa6ac38dbedbef56e9fd95a444c0cba4131927244ebbf87d08426cc819b72e2b7317fc0cb5df46e9e583289706e9edf4f3d29571da0982c531c608cd0d352a7b6216e6aa716e145c423d8d5c954298cfc1f1dd783f94130c53ec8ef6630b1f6cf794d204e22a29acb33ca2ba933e3d679d8a3cd38e18a676eccd4a2a5b942474112451c4652f7c41569fcd0b8025a48ecaea4506ce28f9c3a857de0629fd5fa0a735685c76b57ed424afde7478e6c96df259a1cc5a2489111a26b0ccc4bd6aa7f00"
+    ],
+    "rawHeaders": {
+      "access-control-allow-origin": "*",
+      "content-encoding": "br",
+      "content-length": "696",
+      "content-type": "application/json",
+      "date": "Sun, 08 Mar 2026 02:39:15 GMT",
+      "server": "gunicorn",
+      "vary": "Accept-Encoding"
+    },
+    "responseIsBinary": false
+  }
+]

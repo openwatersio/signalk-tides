@@ -1,0 +1,200 @@
+[
+  {
+    "scope": "https://www.worldtides.info:443",
+    "method": "GET",
+    "path": "/api/v3?date=2025-01-01&datum=CD&days=7&extremes=true&lat=51.5074&lon=-0.1278",
+    "body": "",
+    "status": 200,
+    "response": {
+      "status": 200,
+      "callCount": 1,
+      "copyright": "Tidal data retrieved from www.worldtides.info. Copyright (c) 2014-2026 Brainware LLC. Licensed for use of individual spatial coordinates on behalf of/by an end-user. Generated using AVISO+ FES2022 produced by Noveltis, Legos and CLS and distributed by Aviso+, with support from CNES. NO GUARANTEES ARE MADE ABOUT THE CORRECTNESS OF THIS DATA. You may not use it if anyone or anything could come to harm as a result of using it (e.g. for navigational purposes).",
+      "requestLat": 51.5074,
+      "requestLon": -0.1278,
+      "responseLat": 51.4833,
+      "responseLon": -0.15,
+      "atlas": "FES2022",
+      "station": "Chelsea Bridge",
+      "requestDatum": "CD",
+      "responseDatum": "CD",
+      "extremes": [
+        {
+          "dt": 1735698797,
+          "date": "2025-01-01T02:33+0000",
+          "height": 5.977,
+          "type": "High"
+        },
+        {
+          "dt": 1735723700,
+          "date": "2025-01-01T09:28+0000",
+          "height": 0.46,
+          "type": "Low"
+        },
+        {
+          "dt": 1735743435,
+          "date": "2025-01-01T14:57+0000",
+          "height": 5.975,
+          "type": "High"
+        },
+        {
+          "dt": 1735768179,
+          "date": "2025-01-01T21:49+0000",
+          "height": 0.647,
+          "type": "Low"
+        },
+        {
+          "dt": 1735787625,
+          "date": "2025-01-02T03:13+0000",
+          "height": 6.193,
+          "type": "High"
+        },
+        {
+          "dt": 1735812850,
+          "date": "2025-01-02T10:14+0000",
+          "height": 0.221,
+          "type": "Low"
+        },
+        {
+          "dt": 1735832387,
+          "date": "2025-01-02T15:39+0000",
+          "height": 6.103,
+          "type": "High"
+        },
+        {
+          "dt": 1735857153,
+          "date": "2025-01-02T22:32+0000",
+          "height": 0.586,
+          "type": "Low"
+        },
+        {
+          "dt": 1735876496,
+          "date": "2025-01-03T03:54+0000",
+          "height": 6.332,
+          "type": "High"
+        },
+        {
+          "dt": 1735901924,
+          "date": "2025-01-03T10:58+0000",
+          "height": 0.063,
+          "type": "Low"
+        },
+        {
+          "dt": 1735921403,
+          "date": "2025-01-03T16:23+0000",
+          "height": 6.137,
+          "type": "High"
+        },
+        {
+          "dt": 1735946299,
+          "date": "2025-01-03T23:18+0000",
+          "height": 0.592,
+          "type": "Low"
+        },
+        {
+          "dt": 1735965470,
+          "date": "2025-01-04T04:37+0000",
+          "height": 6.374,
+          "type": "High"
+        },
+        {
+          "dt": 1735990987,
+          "date": "2025-01-04T11:43+0000",
+          "height": 0.008,
+          "type": "Low"
+        },
+        {
+          "dt": 1736010551,
+          "date": "2025-01-04T17:09+0000",
+          "height": 6.072,
+          "type": "High"
+        },
+        {
+          "dt": 1736035339,
+          "date": "2025-01-05T00:02+0000",
+          "height": 0.669,
+          "type": "Low"
+        },
+        {
+          "dt": 1736054616,
+          "date": "2025-01-05T05:23+0000",
+          "height": 6.314,
+          "type": "High"
+        },
+        {
+          "dt": 1736080099,
+          "date": "2025-01-05T12:28+0000",
+          "height": 0.06,
+          "type": "Low"
+        },
+        {
+          "dt": 1736099898,
+          "date": "2025-01-05T17:58+0000",
+          "height": 5.926,
+          "type": "High"
+        },
+        {
+          "dt": 1736124453,
+          "date": "2025-01-06T00:47+0000",
+          "height": 0.804,
+          "type": "Low"
+        },
+        {
+          "dt": 1736144005,
+          "date": "2025-01-06T06:13+0000",
+          "height": 6.163,
+          "type": "High"
+        },
+        {
+          "dt": 1736169321,
+          "date": "2025-01-06T13:15+0000",
+          "height": 0.21,
+          "type": "Low"
+        },
+        {
+          "dt": 1736189487,
+          "date": "2025-01-06T18:51+0000",
+          "height": 5.731,
+          "type": "High"
+        },
+        {
+          "dt": 1736213725,
+          "date": "2025-01-07T01:35+0000",
+          "height": 0.978,
+          "type": "Low"
+        },
+        {
+          "dt": 1736233683,
+          "date": "2025-01-07T07:08+0000",
+          "height": 5.949,
+          "type": "High"
+        },
+        {
+          "dt": 1736258734,
+          "date": "2025-01-07T14:05+0000",
+          "height": 0.432,
+          "type": "Low"
+        },
+        {
+          "dt": 1736279318,
+          "date": "2025-01-07T19:48+0000",
+          "height": 5.526,
+          "type": "High"
+        }
+      ]
+    },
+    "rawHeaders": {
+      "access-control-allow-headers": "Origin, Content-Type, Accept, Accept-Language, Content-Language",
+      "access-control-allow-methods": "GET, POST",
+      "access-control-allow-origin": "*",
+      "connection": "keep-alive",
+      "content-encoding": "br",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sun, 08 Mar 2026 02:39:15 GMT",
+      "server": "nginx",
+      "transfer-encoding": "chunked",
+      "vary": "Accept-Encoding, User-Agent",
+      "x-powered-by": "PleskLin"
+    },
+    "responseIsBinary": false
+  }
+]
