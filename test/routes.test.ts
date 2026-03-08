@@ -4,16 +4,16 @@ import request from 'supertest';
 import { createAdapterRoutes } from '../src/routes.js';
 import type { TideForecastFunction } from '../src/types.js';
 
-const mockProvider: TideForecastFunction = async ({ position, date }) => ({
+const mockProvider: TideForecastFunction = async ({ position }) => ({
   station: {
-    name: 'Test Station',
+    name: "Test Station",
     position: { latitude: position.latitude, longitude: position.longitude },
   },
   extremes: [
-    { type: 'High', value: 1.5, time: '2025-01-01T06:00:00Z' },
-    { type: 'Low', value: 0.3, time: '2025-01-01T12:00:00Z' },
-    { type: 'High', value: 1.7, time: '2025-01-01T18:00:00Z' },
-    { type: 'Low', value: 0.2, time: '2025-01-02T00:00:00Z' },
+    { type: "High", value: 1.5, time: "2025-01-01T06:00:00Z" },
+    { type: "Low", value: 0.3, time: "2025-01-01T12:00:00Z" },
+    { type: "High", value: 1.7, time: "2025-01-01T18:00:00Z" },
+    { type: "Low", value: 0.2, time: "2025-01-02T00:00:00Z" },
   ],
 });
 

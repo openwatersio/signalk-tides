@@ -31,7 +31,7 @@ describe('WorldTides Source', () => {
   it('returns tide extremes for London', async () => {
     const app = createMockSignalKApp();
     const source = worldtidesSource(app);
-    const provider = source.start({ worldtidesApiKey: apiKey });
+    const provider = await source.start({ worldtidesApiKey: apiKey });
 
     const result = await provider({
       position: { latitude: 51.5074, longitude: -0.1278 },
@@ -54,7 +54,7 @@ describe('WorldTides Source', () => {
   it('returns 7 days of extremes', async () => {
     const app = createMockSignalKApp();
     const source = worldtidesSource(app);
-    const provider = source.start({ worldtidesApiKey: apiKey });
+    const provider = await source.start({ worldtidesApiKey: apiKey });
 
     const result = await provider({
       position: { latitude: 51.5074, longitude: -0.1278 },
@@ -68,7 +68,7 @@ describe('WorldTides Source', () => {
   it('returns values in reasonable range', async () => {
     const app = createMockSignalKApp();
     const source = worldtidesSource(app);
-    const provider = source.start({ worldtidesApiKey: apiKey });
+    const provider = await source.start({ worldtidesApiKey: apiKey });
 
     const result = await provider({
       position: { latitude: 51.5074, longitude: -0.1278 },
