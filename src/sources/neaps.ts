@@ -1,44 +1,66 @@
-import type { SignalKApp, TideForecastParams, TideForecastResult, TideSource } from "../types.js";
-import { getExtremesPrediction } from "neaps";
-import moment from 'moment';
+import type { SignalKApp, TideSource, TideProvider, StationSummary } from "../types.js";
+import {
+  getExtremesPrediction,
+  getTimelinePrediction,
+  findStation,
+  stationsNear,
+} from "neaps";
+import { stations, search, bbox, type Station } from "@neaps/tide-database";
+
+function stripStationDetails(station: Station): StationSummary {
+  const { id, name, region, country, continent, latitude, longitude, timezone, type } = station;
+  return { id, name, region, country, continent, latitude, longitude, timezone, type };
+}
 
 export default function (app: SignalKApp): TideSource {
   return {
-    id: 'neaps',
-    title: 'Neaps',
+    id: "neaps",
+    title: "Neaps",
     properties: {},
 
     start() {
       app.debug("Using Neaps");
 
-      return async ({ position, date = moment().subtract(1, "days").toISOString() }: TideForecastParams): Promise<TideForecastResult> => {
-        const { station, extremes } = getExtremesPrediction({
-          ...position,
-          start: new Date(date),
-          end: moment(date).add(7, "days").toDate(),
-          labels: {
-            high: "High",
-            low: "Low"
-          }
-        });
+      const provider: TideProvider = {
+        getExtremesPrediction(options) {
+          return getExtremesPrediction(options);
+        },
 
-        return {
-          station: {
-            name: station.name,
-            position: {
-              latitude: station.latitude,
-              longitude: station.longitude,
-            },
-          },
-          extremes: extremes.map(({ time, level, label }) => {
-            return {
-              type: label as "High" | "Low",
-              value: level,
-              time: time.toISOString(),
-            };
-          }),
-        };
+        getTimelinePrediction(options) {
+          return getTimelinePrediction(options);
+        },
+
+        findStation(id) {
+          return findStation(id);
+        },
+
+        searchStations(query, options) {
+          const limit = options?.maxResults ?? 10;
+          return search(query).slice(0, limit).map(stripStationDetails);
+        },
+
+        stationsNear(options) {
+          return stationsNear(options);
+        },
+
+        stationsWithin(box) {
+          return bbox(box).map(stripStationDetails);
+        },
+
+        stations() {
+          return stations.map(stripStationDetails);
+        },
+
+        getStationExtremes(id, options) {
+          return findStation(id).getExtremesPrediction(options);
+        },
+
+        getStationTimeline(id, options) {
+          return findStation(id).getTimelinePrediction(options);
+        },
       };
-    }
-  }
+
+      return provider;
+    },
+  };
 }

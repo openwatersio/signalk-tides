@@ -1,16 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { tidesDevServerPlugin } from './tides-dev-server.ts'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: './',
-  publicDir: 'app/public',
+  base: "./",
+  publicDir: "app/public",
   build: {
-    outDir: 'public',
+    outDir: "public",
   },
-  plugins: [
-    tailwindcss(),
-    react()
-  ],
-})
+  resolve: {
+    dedupe: ['react', 'react-dom']
+  },
+  plugins: [tailwindcss(), react(), tidesDevServerPlugin()],
+});
