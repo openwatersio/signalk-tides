@@ -57,7 +57,7 @@
     "react-dom": "^19.1.0",
     "signalk-server": "^2.13.5",
     "tailwindcss": "^4.1.3",
-    "typescript": "^5.8.2",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.24.1",
     "vite": "^7.1.5"
   },
