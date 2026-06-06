@@ -20,6 +20,8 @@ It publishes the following [tide data](https://signalk.org/specification/1.7.0/d
 * `environment.tide.timeLow`
 * `environment.tide.heightNow`
 * `environment.tide.stationName`
+* `environment.tide.state` — tide trend, `rising` or `falling`
+* `environment.tide.timeToNextExtreme` — seconds until the next high or low water
 
 ### Tides resource
 

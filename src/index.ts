@@ -23,7 +23,7 @@ import type {
   ExtremesResponse,
   PositionOptions,
 } from "./types.js";
-import { approximateTideHeightAt } from "./calculations.js";
+import { approximateTideHeightAt, tideStateAt, timeToNextExtreme } from "./calculations.js";
 import FileCache from "./cache.js";
 import createSources from "./sources/index.js";
 import { createAdapterRoutes } from "./routes.js";
@@ -222,6 +222,9 @@ export default function (app: SignalKApp): Plugin {
         .filter(({ time }) => time >= now)
         .slice(0, 2);
 
+      const state = tideStateAt(lastForecast.extremes, now);
+      const secondsToNextExtreme = timeToNextExtreme(lastForecast.extremes, now);
+
       const delta: Delta = {
         context: ("vessels." + app.selfId) as Context,
         updates: [
@@ -236,12 +239,33 @@ export default function (app: SignalKApp): Plugin {
                 path: "environment.tide.heightNow" as Path,
                 value: approximateTideHeightAt(lastForecast.extremes, now),
               },
+              // Omitted (not null) when the forecast has no upcoming extreme,
+              // matching how the nextTides flatMap below goes empty.
+              ...(state !== null
+                ? [{ path: "environment.tide.state" as Path, value: state }]
+                : []),
+              ...(secondsToNextExtreme !== null
+                ? [{ path: "environment.tide.timeToNextExtreme" as Path, value: secondsToNextExtreme }]
+                : []),
               ...nextTides.flatMap(({ label, time, level }) => {
                 return [
                   { path: `environment.tide.height${label}` as Path, value: level },
                   { path: `environment.tide.time${label}` as Path, value: time.toISOString() },
                 ];
               }),
+            ],
+          },
+          {
+            timestamp: now.toISOString() as Timestamp,
+            meta: [
+              {
+                path: "environment.tide.state" as Path,
+                value: { description: "Tide trend at the current position: rising or falling" },
+              },
+              {
+                path: "environment.tide.timeToNextExtreme" as Path,
+                value: { units: "s", description: "Seconds until the next tide extreme (high or low water)" },
+              },
             ],
           },
         ],
