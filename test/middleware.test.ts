@@ -3,77 +3,11 @@ import express from 'express';
 import request from 'supertest';
 import type { Request, Response, Router } from 'express';
 import type { Position } from '@signalk/server-api';
-import { withVesselPosition } from '../src/middleware.js';
-
-// Mock nearestStation
-vi.mock('neaps', () => ({
-  nearestStation: vi.fn()
-}));
-
-const { nearestStation } = await import('neaps');
-
-type NearestStation = ReturnType<typeof nearestStation>;
-type StationOverrides = Omit<Partial<NearestStation>, 'source' | 'license'> & {
-  source?: Partial<NearestStation['source']>;
-  license?: Partial<NearestStation['license']>;
-};
-
-function createMockStation(
-  overrides: StationOverrides = {},
-): NearestStation {
-  const base: NearestStation = {
-    distance: 0,
-    datums: {},
-    harmonic_constituents: [],
-    defaultDatum: undefined,
-    getExtremesPrediction: () => {
-      throw new Error("not used in tests");
-    },
-    getTimelinePrediction: () => {
-      throw new Error("not used in tests");
-    },
-    getWaterLevelAtTime: () => {
-      throw new Error("not used in tests");
-    },
-    id: "noaa/9414290",
-    name: "San Francisco",
-    continent: "North America",
-    country: "US",
-    timezone: "America/Los_Angeles",
-    disclaimers: "",
-    type: "reference",
-    latitude: 37.7749,
-    longitude: -122.4194,
-    source: {
-      name: "NOAA",
-      id: "noaa",
-      published_harmonics: true,
-      url: "https://example.com",
-    },
-    license: {
-      type: "public-domain",
-      commercial_use: true,
-      url: "https://example.com/license",
-    },
-    chart_datum: "MLLW",
-  };
-
-  return {
-    ...base,
-    ...overrides,
-    source: {
-      ...base.source,
-      ...(overrides.source ?? {}),
-    },
-    license: {
-      ...base.license,
-      ...(overrides.license ?? {}),
-    },
-  };
-}
+import { withVesselPosition, type FindNearestStation } from '../src/middleware.js';
 
 describe('withVesselPosition middleware', () => {
   let mockRouter: Router;
+  let findNearest: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     mockRouter = express.Router();
@@ -85,12 +19,18 @@ describe('withVesselPosition middleware', () => {
       });
     });
 
-    vi.clearAllMocks();
+    findNearest = vi.fn();
   });
 
-  function buildApp(getPosition: () => Position | null) {
+  function buildApp(
+    getPosition: () => Position | null,
+    resolver: FindNearestStation = findNearest as FindNearestStation,
+  ) {
     const app = express();
-    app.use('/signalk/v2/api/tides', withVesselPosition(mockRouter, getPosition));
+    app.use(
+      '/signalk/v2/api/tides',
+      withVesselPosition(mockRouter, getPosition, resolver),
+    );
     return app;
   }
 
@@ -99,17 +39,16 @@ describe('withVesselPosition middleware', () => {
       const getPosition = () => ({ latitude: 37.7749, longitude: -122.4194 } as Position);
       const app = buildApp(getPosition);
 
-      vi.mocked(nearestStation).mockReturnValue(
-        createMockStation({
-          id: 'noaa/9414290',
-          source: { id: 'noaa' },
-        }),
-      );
+      findNearest.mockResolvedValue({ id: 'noaa/9414290' });
 
       const response = await request(app)
         .get('/signalk/v2/api/tides/stations/vessel/current')
         .expect(303);
 
+      expect(findNearest).toHaveBeenCalledWith({
+        latitude: 37.7749,
+        longitude: -122.4194,
+      });
       expect(response.headers.location).toBe('/signalk/v2/api/tides/stations/noaa/9414290');
     });
 
@@ -117,12 +56,7 @@ describe('withVesselPosition middleware', () => {
       const getPosition = () => ({ latitude: 37.7749, longitude: -122.4194 } as Position);
       const app = buildApp(getPosition);
 
-      vi.mocked(nearestStation).mockReturnValue(
-        createMockStation({
-          id: 'noaa/9414290',
-          source: { id: 'noaa' },
-        }),
-      );
+      findNearest.mockResolvedValue({ id: 'noaa/9414290' });
 
       const response = await request(app)
         .get('/signalk/v2/api/tides/stations/vessel/current/extremes?start=2025-01-01&end=2025-01-08')
@@ -137,12 +71,7 @@ describe('withVesselPosition middleware', () => {
       const getPosition = () => ({ latitude: 37.7749, longitude: -122.4194 } as Position);
       const app = buildApp(getPosition);
 
-      vi.mocked(nearestStation).mockReturnValue(
-        createMockStation({
-          id: 'noaa/9414290',
-          source: { id: 'noaa' },
-        }),
-      );
+      findNearest.mockResolvedValue({ id: 'noaa/9414290' });
 
       const response = await request(app)
         .get('/signalk/v2/api/tides/stations/vessel/current/timeline')
@@ -159,6 +88,7 @@ describe('withVesselPosition middleware', () => {
         .get('/signalk/v2/api/tides/stations/vessel/current')
         .expect(503);
 
+      expect(findNearest).not.toHaveBeenCalled();
       expect(response.body).toEqual({
         message: 'Vessel position not available',
       });
@@ -167,7 +97,7 @@ describe('withVesselPosition middleware', () => {
     it('returns 404 when no nearby stations found', async () => {
       const getPosition = () => ({ latitude: 90, longitude: 0 } as Position);
       const app = buildApp(getPosition);
-      vi.mocked(nearestStation).mockImplementation(() => undefined as never);
+      findNearest.mockResolvedValue(null);
 
       const response = await request(app)
         .get('/signalk/v2/api/tides/stations/vessel/current')
@@ -178,12 +108,10 @@ describe('withVesselPosition middleware', () => {
       });
     });
 
-    it('returns 500 on nearestStation error', async () => {
+    it('returns 500 when the resolver throws', async () => {
       const getPosition = () => ({ latitude: 37.7749, longitude: -122.4194 } as Position);
       const app = buildApp(getPosition);
-      vi.mocked(nearestStation).mockImplementation(() => {
-        throw new Error('Database error');
-      });
+      findNearest.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app)
         .get('/signalk/v2/api/tides/stations/vessel/current')
@@ -258,16 +186,11 @@ describe('withVesselPosition middleware', () => {
   });
 
   describe('station ID handling', () => {
-    it('correctly handles station ID with slash', async () => {
+    it('redirects to a station ID containing a slash', async () => {
       const getPosition = () => ({ latitude: 37.7749, longitude: -122.4194 } as Position);
       const app = buildApp(getPosition);
 
-      vi.mocked(nearestStation).mockReturnValue(
-        createMockStation({
-          id: 'noaa/9414290',
-          source: { id: 'noaa' },
-        }),
-      );
+      findNearest.mockResolvedValue({ id: 'noaa/9414290' });
 
       const response = await request(app)
         .get('/signalk/v2/api/tides/stations/vessel/current')
@@ -280,12 +203,7 @@ describe('withVesselPosition middleware', () => {
       const getPosition = () => ({ latitude: 37.7749, longitude: -122.4194 } as Position);
       const app = buildApp(getPosition);
 
-      vi.mocked(nearestStation).mockReturnValue(
-        createMockStation({
-          id: 'worldtides/US/San_Francisco',
-          source: { id: 'worldtides' },
-        }),
-      );
+      findNearest.mockResolvedValue({ id: 'worldtides/US/San_Francisco' });
 
       const response = await request(app)
         .get('/signalk/v2/api/tides/stations/vessel/current')
@@ -299,29 +217,25 @@ describe('withVesselPosition middleware', () => {
     it('detects vessel/current at the root', async () => {
       const getPosition = () => ({ latitude: 37.7749, longitude: -122.4194 } as Position);
       const app = buildApp(getPosition);
-      vi.mocked(nearestStation).mockReturnValue(
-        createMockStation({ id: 'noaa/9414290', source: { id: 'noaa' } }),
-      );
+      findNearest.mockResolvedValue({ id: 'noaa/9414290' });
 
       await request(app)
         .get('/signalk/v2/api/tides/stations/vessel/current')
         .expect(303);
 
-      expect(nearestStation).toHaveBeenCalledTimes(1);
+      expect(findNearest).toHaveBeenCalledTimes(1);
     });
 
     it('detects vessel/current with trailing slash', async () => {
       const getPosition = () => ({ latitude: 37.7749, longitude: -122.4194 } as Position);
       const app = buildApp(getPosition);
-      vi.mocked(nearestStation).mockReturnValue(
-        createMockStation({ id: 'noaa/9414290', source: { id: 'noaa' } }),
-      );
+      findNearest.mockResolvedValue({ id: 'noaa/9414290' });
 
       await request(app)
         .get('/signalk/v2/api/tides/stations/vessel/current/')
         .expect(303);
 
-      expect(nearestStation).toHaveBeenCalledTimes(1);
+      expect(findNearest).toHaveBeenCalledTimes(1);
     });
 
     it('does not match partial vessel/current paths', async () => {
@@ -332,7 +246,7 @@ describe('withVesselPosition middleware', () => {
         .get('/signalk/v2/api/tides/stations/vessel/current-not-this')
         .expect(200);
 
-      expect(nearestStation).not.toHaveBeenCalled();
+      expect(findNearest).not.toHaveBeenCalled();
       expect(response.body.path).toBe('/stations/vessel/current-not-this');
     });
   });

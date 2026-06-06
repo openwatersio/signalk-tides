@@ -2,7 +2,7 @@
   {
     "scope": "https://www.worldtides.info:443",
     "method": "GET",
-    "path": "/api/v3?date=2025-01-01&datum=CD&days=7&extremes=true&lat=51.5074&lon=-0.1278",
+    "path": "/api/v3?extremes=&lat=51.5074&lon=-0.1278&date=2025-01-01&days=7",
     "body": "",
     "status": 200,
     "response": {
@@ -194,6 +194,122 @@
       "transfer-encoding": "chunked",
       "vary": "Accept-Encoding, User-Agent",
       "x-powered-by": "PleskLin"
+    },
+    "responseIsBinary": false
+  },
+  {
+    "scope": "https://www.worldtides.info:443",
+    "method": "GET",
+    "path": "/api/v3?datums=&lat=51.4833&lon=-0.15",
+    "body": "",
+    "status": 200,
+    "response": {
+      "status": 200,
+      "callCount": 1,
+      "copyright": "Tidal data retrieved from www.worldtides.info. Copyright (c) 2014-2026 Brainware LLC. Licensed for use of individual spatial coordinates on behalf of/by an end-user. Generated using AVISO+ FES2022 produced by Noveltis, Legos and CLS and distributed by Aviso+, with support from CNES. NO GUARANTEES ARE MADE ABOUT THE CORRECTNESS OF THIS DATA. You may not use it if anyone or anything could come to harm as a result of using it (e.g. for navigational purposes).",
+      "requestLat": 51.4833,
+      "requestLon": -0.15,
+      "responseLat": 51.4833,
+      "responseLon": -0.15,
+      "atlas": "FES2022",
+      "station": "Chelsea Bridge",
+      "datums": [
+        {
+          "name": "HAT",
+          "height": 4.16
+        },
+        {
+          "name": "MHHWS",
+          "height": 3.42
+        },
+        {
+          "name": "MHWS",
+          "height": 3.35
+        },
+        {
+          "name": "MLHWS",
+          "height": 3.281
+        },
+        {
+          "name": "MHHW",
+          "height": 2.65
+        },
+        {
+          "name": "MHW",
+          "height": 2.6
+        },
+        {
+          "name": "MLHW",
+          "height": 2.53
+        },
+        {
+          "name": "MHHWN",
+          "height": 1.863
+        },
+        {
+          "name": "MHWN",
+          "height": 1.817
+        },
+        {
+          "name": "MLHWN",
+          "height": 1.772
+        },
+        {
+          "name": "MTL",
+          "height": 0.121
+        },
+        {
+          "name": "MHLWN",
+          "height": -1.512
+        },
+        {
+          "name": "MLWN",
+          "height": -1.713
+        },
+        {
+          "name": "MLLWN",
+          "height": -1.914
+        },
+        {
+          "name": "MHLW",
+          "height": -2.203
+        },
+        {
+          "name": "MLW",
+          "height": -2.358
+        },
+        {
+          "name": "MLLW",
+          "height": -2.521
+        },
+        {
+          "name": "MHLWS",
+          "height": -2.749
+        },
+        {
+          "name": "MLWS",
+          "height": -2.961
+        },
+        {
+          "name": "MLLWS",
+          "height": -3.173
+        },
+        {
+          "name": "LAT",
+          "height": -3.9
+        },
+        {
+          "name": "CD",
+          "height": -3.13
+        },
+        {
+          "name": "MSL",
+          "height": 0
+        }
+      ]
+    },
+    "rawHeaders": {
+      "content-type": "application/json"
     },
     "responseIsBinary": false
   }

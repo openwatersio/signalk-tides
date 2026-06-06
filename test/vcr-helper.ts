@@ -40,7 +40,12 @@ export async function useVCR(options: VCROptions): Promise<void> {
         nock(def.scope)
           .filteringPath((path) => stripQueryParams(path, redact))
           .get(stripQueryParams(def.path as string, redact))
-          .reply(def.status ?? 200, def.response, def.headers as Record<string, string>);
+          .reply(
+            def.status ?? 200,
+            def.response,
+            // @ts-expect-error - nock's Definition type is missing headers
+            def.headers as Record<string, string>,
+          );
       }
     } else {
       nock.define(definitions);

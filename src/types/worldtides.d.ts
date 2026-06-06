@@ -1,4 +1,4 @@
-export interface WorldTidesPredictionApiResponse {
+export interface WorldTidesApiResponse {
   status: number;
   error?: string;
   callCount: number;
@@ -9,12 +9,37 @@ export interface WorldTidesPredictionApiResponse {
   responseLon: number;
   station: string;
   atlas: string;
-  extremes: Extreme[];
+  requestDatum?: string;
+  responseDatum?: string;
+  timezone?: string;
+  extremes?: WorldTidesExtreme[];
+  heights?: WorldTidesHeight[];
+  stations?: WorldTidesStation[];
+  datums?: WorldTidesDatum[];
 }
 
 export interface WorldTidesExtreme {
   dt: number;
   date: string;
   height: number;
-  type: string;
+  type: "High" | "Low";
+}
+
+export interface WorldTidesHeight {
+  dt: number;
+  date: string;
+  height: number;
+}
+
+export interface WorldTidesStation {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  timezone: string;
+}
+
+export interface WorldTidesDatum {
+  name: string;
+  height: number;
 }

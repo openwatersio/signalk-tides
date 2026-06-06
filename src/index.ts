@@ -17,7 +17,12 @@
 import { Context, Delta, Path, Plugin, Position, Timestamp } from "@signalk/server-api";
 import { RequestHandler } from "express";
 import { createRoutes } from "@neaps/api";
-import type { SignalKApp, Config, TideForecastResult } from "./types.js";
+import type {
+  SignalKApp,
+  Config,
+  ExtremesResponse,
+  PositionOptions,
+} from "./types.js";
 import { approximateTideHeightAt } from "./calculations.js";
 import FileCache from "./cache.js";
 import createSources from "./sources/index.js";
@@ -88,7 +93,7 @@ export default function (app: SignalKApp): Plugin {
       app.debug("Starting tides-api: " + JSON.stringify(props));
     }
 
-    let lastForecast: TideForecastResult | null = null;
+    let lastForecast: ExtremesResponse | null = null;
     let lastPosition: Position | null = null;
     const cache = new FileCache(app.getDataDirPath());
 
@@ -101,6 +106,17 @@ export default function (app: SignalKApp): Plugin {
 
     const getDefaultPosition = () => lastPosition;
 
+    // Resolve vessel/current to the nearest station the active source can
+    // serve. Using the provider (rather than a fixed database) keeps the
+    // redirect target valid for whichever source is selected.
+    const findNearestStation = async (position: PositionOptions) => {
+      if (!provider.stationsNear) return null;
+      const [nearest] = await Promise.resolve(
+        provider.stationsNear({ ...position, maxResults: 1 }),
+      );
+      return nearest ?? null;
+    };
+
     // Set active router based on source
     if (source.id === "neaps") {
       const neapsRoutes = createRoutes({ prefix: MOUNT_PATH });
@@ -108,11 +124,13 @@ export default function (app: SignalKApp): Plugin {
       activeRouter = withVesselPosition(
         neapsRoutes as unknown as RequestHandler,
         getDefaultPosition,
+        findNearestStation,
       );
     } else {
       activeRouter = withVesselPosition(
         createAdapterRoutes(provider),
         getDefaultPosition,
+        findNearestStation,
       );
     }
 
@@ -120,9 +138,16 @@ export default function (app: SignalKApp): Plugin {
     app.registerResourceProvider({
       type: "tides",
       methods: {
-        async listResources(query) {
+        async listResources() {
           if (!lastPosition) throw new Error("No position available");
-          return provider({ position: lastPosition, ...query }) as unknown as Record<string, unknown>;
+          const now = new Date();
+          const result = await provider.getExtremesPrediction({
+            latitude: lastPosition.latitude,
+            longitude: lastPosition.longitude,
+            start: now,
+            end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+          });
+          return result as unknown as Record<string, unknown>;
         },
         getResource(): never {
           throw new Error("Not implemented");
@@ -173,7 +198,13 @@ export default function (app: SignalKApp): Plugin {
       }
 
       try {
-        lastForecast = await provider({ position: lastPosition });
+        const now = new Date();
+        lastForecast = await provider.getExtremesPrediction({
+          latitude: lastPosition.latitude,
+          longitude: lastPosition.longitude,
+          start: now,
+          end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        });
         app.setPluginStatus("Updated tide forecast from " + source.title);
         updateTides();
       } catch (e: unknown) {
@@ -188,7 +219,7 @@ export default function (app: SignalKApp): Plugin {
       if (!lastForecast) return;
       // Get the next two upcoming extremes
       const nextTides = lastForecast.extremes
-        .filter(({ time }) => new Date(time) >= now)
+        .filter(({ time }) => time >= now)
         .slice(0, 2);
 
       const delta: Delta = {
@@ -205,10 +236,10 @@ export default function (app: SignalKApp): Plugin {
                 path: "environment.tide.heightNow" as Path,
                 value: approximateTideHeightAt(lastForecast.extremes, now),
               },
-              ...nextTides.flatMap(({ type, time, value }) => {
+              ...nextTides.flatMap(({ label, time, level }) => {
                 return [
-                  { path: `environment.tide.height${type}` as Path, value },
-                  { path: `environment.tide.time${type}` as Path, value: time },
+                  { path: `environment.tide.height${label}` as Path, value: level },
+                  { path: `environment.tide.time${label}` as Path, value: time.toISOString() },
                 ];
               }),
             ],

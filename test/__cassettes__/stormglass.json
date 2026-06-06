@@ -2,7 +2,7 @@
   {
     "scope": "https://api.stormglass.io:443",
     "method": "GET",
-    "path": "/v2/tide/extremes/point?start=2025-01-01&end=2025-01-08&lat=37.7749&lng=-122.4194",
+    "path": "/v2/tide/extremes/point?lat=37.7749&lng=-122.4194&start=2025-01-01T00%3A00%3A00.000Z&end=2025-01-08T00%3A00%3A00.000Z",
     "body": "",
     "status": 200,
     "response": [

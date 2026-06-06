@@ -29,54 +29,62 @@ describe('StormGlass Source', () => {
   it('returns tide extremes', async () => {
     const app = createMockSignalKApp();
     const source = stormglassSource(app);
-    const provider = await source.start({ stormglassApiKey: apiKey });
+    const provider = await source.start({ stormglassApiKey: apiKey, _fetch: fetch });
 
-    const result = await provider({
-      position: { latitude: 37.7749, longitude: -122.4194 },
-      date: '2025-01-01',
+    const now = new Date('2025-01-01');
+    const result = await provider.getExtremesPrediction({
+      latitude: 37.7749,
+      longitude: -122.4194,
+      start: now,
+      end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
     });
 
     expect(result.station.name).toBeTruthy();
-    expect(result.station.name).toMatch(/\(.*\)/); // "Station (Source)" format
-    expect(result.station.position.latitude).toBeDefined();
-    expect(result.station.position.longitude).toBeDefined();
+    expect(result.station.latitude).toBeDefined();
+    expect(result.station.longitude).toBeDefined();
 
     expect(result.extremes.length).toBeGreaterThan(0);
 
     const extreme = result.extremes[0];
-    expect(['High', 'Low']).toContain(extreme.type);
-    expect(typeof extreme.value).toBe('number');
-    expect(new Date(extreme.time).toString()).not.toBe('Invalid Date');
+    expect(['High', 'Low']).toContain(extreme.label);
+    expect(typeof extreme.level).toBe('number');
+    expect(extreme.time).toBeInstanceOf(Date);
   });
 
   it('normalizes high/low type from lowercase', async () => {
     const app = createMockSignalKApp();
     const source = stormglassSource(app);
-    const provider = await source.start({ stormglassApiKey: apiKey });
+    const provider = await source.start({ stormglassApiKey: apiKey, _fetch: fetch });
 
-    const result = await provider({
-      position: { latitude: 37.7749, longitude: -122.4194 },
-      date: '2025-01-01',
+    const now = new Date('2025-01-01');
+    const result = await provider.getExtremesPrediction({
+      latitude: 37.7749,
+      longitude: -122.4194,
+      start: now,
+      end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
     });
 
     result.extremes.forEach(extreme => {
-      expect(['High', 'Low']).toContain(extreme.type);
+      expect(['High', 'Low']).toContain(extreme.label);
     });
   });
 
   it('returns values in reasonable range', async () => {
     const app = createMockSignalKApp();
     const source = stormglassSource(app);
-    const provider = await source.start({ stormglassApiKey: apiKey });
+    const provider = await source.start({ stormglassApiKey: apiKey, _fetch: fetch });
 
-    const result = await provider({
-      position: { latitude: 37.7749, longitude: -122.4194 },
-      date: '2025-01-01',
+    const now = new Date('2025-01-01');
+    const result = await provider.getExtremesPrediction({
+      latitude: 37.7749,
+      longitude: -122.4194,
+      start: now,
+      end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
     });
 
     result.extremes.forEach(extreme => {
-      expect(extreme.value).toBeGreaterThan(-5);
-      expect(extreme.value).toBeLessThan(10);
+      expect(extreme.level).toBeGreaterThan(-5);
+      expect(extreme.level).toBeLessThan(10);
     });
   });
 });

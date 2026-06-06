@@ -26,6 +26,17 @@ export interface NoaaStation {
   tideType: string;
 }
 
+export interface NoaaDatum {
+  name: string;
+  description: string;
+  value: number;
+}
+
+export interface NoaaDatumsApiResponse {
+  units: string;
+  datums?: NoaaDatum[];
+}
+
 interface NoaaPredictionApiResponse {
   predictions: NoaaTidePrediction[];
   error?: {

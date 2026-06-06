@@ -76089,5 +76089,122 @@
       "x-amzn-requestid": "2cb3a3be-e62b-4fa0-be35-9446a8816d39"
     },
     "responseIsBinary": false
+  },
+  {
+    "scope": "https://api.tidesandcurrents.noaa.gov:443",
+    "method": "GET",
+    "path": "/mdapi/prod/webapi/stations/9414317/datums.json",
+    "body": "",
+    "status": 200,
+    "response": {
+      "accepted": "Oct 14 2003",
+      "superseded": "",
+      "epoch": "1983-2001",
+      "units": "feet",
+      "OrthometricDatum": "NAVD88",
+      "datums": [
+        {
+          "name": "STND",
+          "description": "Station Datum",
+          "value": 0.0
+        },
+        {
+          "name": "MHHW",
+          "description": "Mean Higher-High Water",
+          "value": 9.74
+        },
+        {
+          "name": "MHW",
+          "description": "Mean High Water",
+          "value": 9.12
+        },
+        {
+          "name": "DTL",
+          "description": "Mean Diurnal Tide Level",
+          "value": 6.61
+        },
+        {
+          "name": "MTL",
+          "description": "Mean Tide Level",
+          "value": 6.86
+        },
+        {
+          "name": "MSL",
+          "description": "Mean Sea Level",
+          "value": 6.75
+        },
+        {
+          "name": "MLW",
+          "description": "Mean Low Water",
+          "value": 4.6
+        },
+        {
+          "name": "MLLW",
+          "description": "Mean Lower-Low Water",
+          "value": 3.48
+        },
+        {
+          "name": "GT",
+          "description": "Great Diurnal Range",
+          "value": 6.26
+        },
+        {
+          "name": "MN",
+          "description": "Mean Range of Tide",
+          "value": 4.51
+        },
+        {
+          "name": "DHQ",
+          "description": "Mean Diurnal High Water Inequality",
+          "value": 0.63
+        },
+        {
+          "name": "DLQ",
+          "description": "Mean Diurnal Low Water Inequality",
+          "value": 1.12
+        },
+        {
+          "name": "HWI",
+          "description": "Greenwich High Water Interval (in hours)",
+          "value": 7.91
+        },
+        {
+          "name": "LWI",
+          "description": "Greenwich Low Water Interval (in hours)",
+          "value": 1.3
+        },
+        {
+          "name": "NAVD88",
+          "description": "North American Vertical Datum of 1988",
+          "value": 3.5
+        }
+      ],
+      "LAT": 1.394,
+      "LATdate": "20040604",
+      "LATtime": "14:30",
+      "HAT": 11.102,
+      "HATdate": "20050110",
+      "HATtime": "18:54",
+      "min": null,
+      "mindate": "",
+      "mintime": "",
+      "max": null,
+      "maxdate": "",
+      "maxtime": "",
+      "disclaimers": {
+        "disclaimers": [],
+        "self": null
+      },
+      "DatumAnalysisPeriod": [
+        "10/01/1978 - 10/31/1978"
+      ],
+      "NGSLink": "",
+      "ctrlStation": "9414290 San Francisco, CA",
+      "self": "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9414317/datums.json"
+    },
+    "rawHeaders": {
+      "content-type": "application/json"
+    },
+    "responseIsBinary": false
   }
 ]

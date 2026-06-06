@@ -1,40 +1,43 @@
 import { Router } from "express";
 import { openapi } from "@neaps/api";
-import { approximateTideHeightAt } from "./calculations.js";
-import type { TideExtreme, TideForecastFunction } from "./types.js";
+import type { TideProvider } from "./types.js";
 
 /**
  * Create Express routes that implement a @neaps/api-compatible API
- * backed by the given tide forecast provider.
+ * backed by the given tide provider.
  */
-export function createAdapterRoutes(provider: TideForecastFunction) {
+export function createAdapterRoutes(provider: TideProvider) {
   const router = Router();
 
-  router.get("/openapi.json", (_req, res) => {
-    res.json(openapi);
+  router.get("/", (req, res) => {
+    res.json({
+      name: "Tides API",
+      version: openapi.info.version,
+      docs: `${req.baseUrl}/openapi.json`,
+    });
+  });
+
+  router.get("/openapi.json", (req, res) => {
+    res.json({ ...openapi, servers: [{ url: req.baseUrl || "/" }] });
   });
 
   router.get("/extremes", async (req, res) => {
-    const { latitude, longitude, start, end } = req.query;
+    const { latitude, longitude } = req.query;
 
     if (!latitude || !longitude) {
-      return res.status(400).json({ message: "latitude and longitude are required" });
+      return res
+        .status(400)
+        .json({ message: "latitude and longitude are required" });
     }
 
     try {
-      const result = await provider({
-        position: {
-          latitude: Number(latitude),
-          longitude: Number(longitude),
-        },
-        date: start ? String(start) : undefined,
-      });
-
-      const extremes = filterByTimeRange(result.extremes, start, end);
+      const result = await provider.getExtremesPrediction(
+        parsePredictionOptions(req.query),
+      );
 
       res.json({
-        station: result.station,
-        extremes: extremes.map(toNeapsExtreme),
+        ...result,
+        extremes: result.extremes.map(serializeExtreme),
       });
     } catch (error: unknown) {
       res.status(500).json({ message: (error as Error).message });
@@ -42,109 +45,177 @@ export function createAdapterRoutes(provider: TideForecastFunction) {
   });
 
   router.get("/timeline", async (req, res) => {
-    const { latitude, longitude, start, end } = req.query;
+    const { latitude, longitude } = req.query;
 
     if (!latitude || !longitude) {
-      return res.status(400).json({ message: "latitude and longitude are required" });
+      return res
+        .status(400)
+        .json({ message: "latitude and longitude are required" });
     }
 
     try {
-      const result = await provider({
-        position: {
-          latitude: Number(latitude),
-          longitude: Number(longitude),
-        },
-        date: start ? String(start) : undefined,
-      });
-
-      const startTime = start ? new Date(String(start)) : new Date();
-      const endTime = end
-        ? new Date(String(end))
-        : new Date(startTime.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-      const timeline = generateTimeline(result.extremes, startTime, endTime);
+      const result = await provider.getTimelinePrediction(
+        parsePredictionOptions(req.query),
+      );
 
       res.json({
-        station: result.station,
-        timeline,
+        ...result,
+        timeline: result.timeline.map(serializeTimelineEntry),
       });
     } catch (error: unknown) {
       res.status(500).json({ message: (error as Error).message });
     }
   });
 
-  // Station endpoints are not supported by non-neaps sources
-  router.get("/stations", (_req, res) => {
-    res.status(501).json({ message: "Station discovery is not supported by this data source" });
+  // Station endpoints — delegate to provider if supported
+
+  router.get("/stations", async (req, res) => {
+    const { query, latitude, longitude, maxResults, maxDistance, bbox } =
+      req.query;
+
+    try {
+      if (query && provider.searchStations) {
+        const results = await provider.searchStations(String(query), {
+          maxResults: maxResults ? Number(maxResults) : undefined,
+        });
+        return res.json(results);
+      }
+
+      if (bbox && provider.stationsWithin) {
+        const parts = String(bbox)
+          .split(",")
+          .map(Number) as [number, number, number, number];
+        return res.json(await provider.stationsWithin(parts));
+      }
+
+      if (latitude && longitude && provider.stationsNear) {
+        const results = await provider.stationsNear({
+          latitude: Number(latitude),
+          longitude: Number(longitude),
+          maxResults: maxResults ? Number(maxResults) : undefined,
+          maxDistance: maxDistance ? Number(maxDistance) : undefined,
+        });
+        return res.json(results);
+      }
+
+      if (provider.stations) {
+        return res.json(await provider.stations());
+      }
+
+      res.status(501).json({
+        message: "Station discovery is not supported by this data source",
+      });
+    } catch (error: unknown) {
+      res.status(500).json({ message: (error as Error).message });
+    }
   });
 
-  router.get("/stations/:source/:id", (_req, res) => {
-    res.status(501).json({ message: "Station lookup is not supported by this data source" });
+  router.get("/stations/:source/:id", async (req, res) => {
+    if (!provider.findStation) {
+      return res.status(501).json({
+        message: "Station lookup is not supported by this data source",
+      });
+    }
+
+    try {
+      const station = await provider.findStation(
+        `${req.params.source}/${req.params.id}`,
+      );
+      res.json(station);
+    } catch (error: unknown) {
+      res.status(404).json({ message: (error as Error).message });
+    }
   });
 
-  router.get("/stations/:source/:id/extremes", (_req, res) => {
-    res.status(501).json({ message: "Station lookup is not supported by this data source" });
+  router.get("/stations/:source/:id/extremes", async (req, res) => {
+    if (!provider.getStationExtremes) {
+      return res.status(501).json({
+        message: "Station predictions are not supported by this data source",
+      });
+    }
+
+    try {
+      const result = await provider.getStationExtremes(
+        `${req.params.source}/${req.params.id}`,
+        parseTimeOptions(req.query),
+      );
+
+      res.json({
+        ...result,
+        extremes: result.extremes.map(serializeExtreme),
+      });
+    } catch (error: unknown) {
+      res.status(404).json({ message: (error as Error).message });
+    }
   });
 
-  router.get("/stations/:source/:id/timeline", (_req, res) => {
-    res.status(501).json({ message: "Station lookup is not supported by this data source" });
+  router.get("/stations/:source/:id/timeline", async (req, res) => {
+    if (!provider.getStationTimeline) {
+      return res.status(501).json({
+        message: "Station predictions are not supported by this data source",
+      });
+    }
+
+    try {
+      const result = await provider.getStationTimeline(
+        `${req.params.source}/${req.params.id}`,
+        parseTimeOptions(req.query),
+      );
+
+      res.json({
+        ...result,
+        timeline: result.timeline.map(serializeTimelineEntry),
+      });
+    } catch (error: unknown) {
+      res.status(404).json({ message: (error as Error).message });
+    }
   });
 
   return router;
 }
 
-/** Convert a TideExtreme to the @neaps/api extreme format */
-function toNeapsExtreme(e: TideExtreme) {
+function parseTimeOptions(query: Record<string, unknown>) {
+  const { start, end, datum, units } = query;
   return {
-    time: e.time,
-    level: e.value,
-    high: e.type === "High",
-    low: e.type === "Low",
-    label: e.type,
+    start: start ? new Date(String(start)) : new Date(),
+    end: end
+      ? new Date(String(end))
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    ...(datum ? { datum: String(datum) } : {}),
+    ...(units ? { units: String(units) as "meters" | "feet" } : {}),
   };
 }
 
-function filterByTimeRange(
-  extremes: TideExtreme[],
-  start: unknown,
-  end: unknown
-) {
-  let filtered = extremes;
-  if (start) {
-    const startTime = new Date(String(start)).getTime();
-    filtered = filtered.filter((e) => new Date(e.time).getTime() >= startTime);
-  }
-  if (end) {
-    const endTime = new Date(String(end)).getTime();
-    filtered = filtered.filter((e) => new Date(e.time).getTime() <= endTime);
-  }
-  return filtered;
+function parsePredictionOptions(query: Record<string, unknown>) {
+  const { latitude, longitude } = query;
+  return {
+    latitude: Number(latitude),
+    longitude: Number(longitude),
+    ...parseTimeOptions(query),
+  };
 }
 
-/**
- * Generate a timeline of water levels at regular intervals by interpolating
- * between known extremes using sine-eased approximation.
- */
-function generateTimeline(
-  extremes: TideExtreme[],
-  start: Date,
-  end: Date,
-  intervalMinutes = 10
-) {
-  const timeline: { time: string; level: number }[] = [];
-  const intervalMs = intervalMinutes * 60 * 1000;
+/** Serialize an Extreme's Date to ISO string for JSON response */
+function serializeExtreme(e: {
+  time: Date;
+  level: number;
+  high: boolean;
+  low: boolean;
+  label: string;
+}) {
+  return {
+    time: e.time.toISOString(),
+    level: e.level,
+    high: e.high,
+    low: e.low,
+    label: e.label,
+  };
+}
 
-  for (let t = start.getTime(); t <= end.getTime(); t += intervalMs) {
-    const time = new Date(t);
-    try {
-      const level = approximateTideHeightAt(extremes, time);
-      if (level !== null) {
-        timeline.push({ time: time.toISOString(), level });
-      }
-    } catch {
-      // Skip points outside the range of known extremes
-    }
-  }
-
-  return timeline;
+/** Serialize a TimelineEntry's Date to ISO string for JSON response */
+function serializeTimelineEntry(e: { time: Date; level: number }) {
+  return {
+    time: e.time.toISOString(),
+    level: e.level,
+  };
 }

@@ -1,12 +1,34 @@
-export interface StormGlassApiResponse {
+export interface StormGlassExtremesResponse {
   data: StormGlassExtreme[];
   meta: StormGlassMeta;
 }
 
 export interface StormGlassExtreme {
   height: number;
-  time: Date;
+  time: string;
   type: "high" | "low";
+}
+
+export interface StormGlassSeaLevelResponse {
+  data: StormGlassSeaLevelEntry[];
+  meta: StormGlassMeta;
+}
+
+export interface StormGlassSeaLevelEntry {
+  time: string;
+  sg: number;
+}
+
+export interface StormGlassStationsResponse {
+  data: StormGlassStationData[];
+  meta: { cost: number; dailyQuota: number; requestCount: number };
+}
+
+export interface StormGlassStationData {
+  name: string;
+  lat: number;
+  lng: number;
+  source: string;
 }
 
 export interface StormGlassMeta {
@@ -17,10 +39,11 @@ export interface StormGlassMeta {
   lng: number;
   requestCount: number;
   start: string;
-  station: StormGlassStation;
+  datum?: string;
+  station: StormGlassMetaStation;
 }
 
-export interface StormGlassStation {
+export interface StormGlassMetaStation {
   distance: number;
   lat: number;
   lng: number;

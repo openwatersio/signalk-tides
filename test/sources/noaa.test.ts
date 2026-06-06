@@ -23,49 +23,66 @@ describe('NOAA Source', () => {
   it('loads stations and returns tide predictions for SF', async () => {
     const app = createMockSignalKApp(tmpDir);
     const source = noaaSource(app);
-    const provider = await source.start({});
+    const provider = await source.start({ _fetch: fetch });
 
-    const result = await provider({
-      position: { latitude: 37.7749, longitude: -122.4194 },
-      date: '2025-01-01',
+    const now = new Date('2025-01-01');
+    const result = await provider.getExtremesPrediction({
+      latitude: 37.7749,
+      longitude: -122.4194,
+      start: now,
+      end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
     });
 
     expect(result.station.name).toBeTruthy();
-    expect(result.station.position.latitude).toBeCloseTo(37.8, 0);
-    expect(result.station.position.longitude).toBeCloseTo(-122.5, 0);
+    expect(result.station.latitude).toBeCloseTo(37.8, 0);
+    expect(result.station.longitude).toBeCloseTo(-122.5, 0);
+
+    // Datums are fetched from NOAA and filtered to valid prediction datums
+    // (ranges/intervals like GT/MN/HWI and the NAVD88 alias are excluded).
+    expect(Object.keys(result.station.datums ?? {})).toEqual(
+      expect.arrayContaining(['MLLW', 'MSL', 'MHW']),
+    );
+    expect(result.station.datums).not.toHaveProperty('GT');
+    expect(result.station.datums).not.toHaveProperty('NAVD88');
 
     expect(result.extremes.length).toBeGreaterThan(0);
 
     const extreme = result.extremes[0];
-    expect(['High', 'Low']).toContain(extreme.type);
-    expect(typeof extreme.value).toBe('number');
-    expect(new Date(extreme.time).toString()).not.toBe('Invalid Date');
+    expect(['High', 'Low']).toContain(extreme.label);
+    expect(typeof extreme.level).toBe('number');
+    expect(extreme.time).toBeInstanceOf(Date);
   });
 
   it('returns values in meters (reasonable range)', async () => {
     const app = createMockSignalKApp(tmpDir);
     const source = noaaSource(app);
-    const provider = await source.start({});
+    const provider = await source.start({ _fetch: fetch });
 
-    const result = await provider({
-      position: { latitude: 37.7749, longitude: -122.4194 },
-      date: '2025-01-01',
+    const now = new Date('2025-01-01');
+    const result = await provider.getExtremesPrediction({
+      latitude: 37.7749,
+      longitude: -122.4194,
+      start: now,
+      end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
     });
 
     result.extremes.forEach(extreme => {
-      expect(extreme.value).toBeGreaterThan(-5);
-      expect(extreme.value).toBeLessThan(10);
+      expect(extreme.level).toBeGreaterThan(-5);
+      expect(extreme.level).toBeLessThan(10);
     });
   });
 
   it('returns 7 days of extremes', async () => {
     const app = createMockSignalKApp(tmpDir);
     const source = noaaSource(app);
-    const provider = await source.start({});
+    const provider = await source.start({ _fetch: fetch });
 
-    const result = await provider({
-      position: { latitude: 37.7749, longitude: -122.4194 },
-      date: '2025-01-01',
+    const now = new Date('2025-01-01');
+    const result = await provider.getExtremesPrediction({
+      latitude: 37.7749,
+      longitude: -122.4194,
+      start: now,
+      end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
     });
 
     // 7 days ~= 14 extremes (2 per day)
