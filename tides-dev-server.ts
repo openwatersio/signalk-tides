@@ -9,7 +9,7 @@ import type { Position } from '@signalk/server-api';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import type { Plugin } from 'vite';
-import { withVesselPosition } from './src/middleware.js';
+import { withVesselPosition } from './src/middleware.ts';
 
 const MOUNT_PATH = '/signalk/v2/api/tides';
 
