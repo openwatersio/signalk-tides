@@ -4,7 +4,6 @@
  */
 import express, { RequestHandler } from 'express';
 import { createRoutes } from '@neaps/api';
-import { nearestStation } from 'neaps';
 import type { Position } from '@signalk/server-api';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
@@ -53,12 +52,9 @@ export async function startTidesDevServer(): Promise<number> {
   // Create and mount @neaps/api routes with vessel position middleware
   const neapsRoutes = createRoutes({ prefix: MOUNT_PATH });
   const getPosition = () => mockPosition;
-  const findNearestStation = (position: { latitude: number; longitude: number }) =>
-    nearestStation(position);
   app.use(MOUNT_PATH, withVesselPosition(
     neapsRoutes as unknown as RequestHandler,
     getPosition,
-    findNearestStation,
   ));
 
   const port = await new Promise<number>((resolve, reject) => {

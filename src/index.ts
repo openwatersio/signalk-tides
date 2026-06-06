@@ -17,25 +17,20 @@
 import { Context, Delta, Path, Plugin, Position, Timestamp } from "@signalk/server-api";
 import { RequestHandler } from "express";
 import { createRoutes } from "@neaps/api";
-import type {
-  SignalKApp,
-  Config,
-  ExtremesResponse,
-  PositionOptions,
-} from "./types.js";
-import { approximateTideHeightAt } from "./calculations.js";
+import { getExtremesPrediction, getWaterLevelAtTime } from "neaps";
+import type { SignalKApp } from "./types.js";
 import FileCache from "./cache.js";
-import createSources from "./sources/index.js";
-import { createAdapterRoutes } from "./routes.js";
 import { withVesselPosition } from "./middleware.js";
 
+type Forecast = ReturnType<typeof getExtremesPrediction>;
+
+// Recompute and republish on a fixed interval. Predictions are computed locally
+// by neaps, so this is cheap and needs no configuration.
+const UPDATE_INTERVAL = 60 * 1000; // 1 minute
+
 export default function (app: SignalKApp): Plugin {
-  // Interval to update tide data
-  const defaultPeriod = 60; // 1 hour
   let unsubscribes: (() => void)[] = [];
   let activeRouter: RequestHandler | null = null;
-
-  const sources = createSources(app);
 
   const MOUNT_PATH = "/signalk/v2/api/tides";
 
@@ -52,33 +47,11 @@ export default function (app: SignalKApp): Plugin {
   const plugin: Plugin = {
     id: "tides",
     name: "Tides",
-    description: "Tidal predictions for the vessel's position from various online sources.",
+    description: "Offline tidal predictions for the vessel's position, powered by Neaps.",
     schema: () => ({
       title: "Tides API",
       type: "object",
-      properties: {
-        source: {
-          title: "Data source",
-          type: "string",
-          anyOf: sources.map(({ id, title }) => ({
-            const: id,
-            title,
-          })),
-          default: sources[0].id,
-        },
-        // Update plugin schema with sources
-        ...sources.reduce(
-          (properties, source) => Object.assign(properties, source.properties ?? {}),
-          {}
-        ),
-        period: {
-          title: "Update frequency",
-          type: "number",
-          description: "How often to update tide forecast (minutes)",
-          default: 60,
-          minimum: 1,
-        },
-      },
+      properties: {},
     }),
     start,
     stop() {
@@ -88,66 +61,29 @@ export default function (app: SignalKApp): Plugin {
     },
   };
 
-  async function start(props: Config) {
-    if (app.debug.enabled) {
-      app.debug("Starting tides-api: " + JSON.stringify(props));
-    }
+  async function start() {
+    app.debug("Starting tides-api");
 
-    let lastForecast: ExtremesResponse | null = null;
+    let lastForecast: Forecast | null = null;
     let lastPosition: Position | null = null;
     const cache = new FileCache(app.getDataDirPath());
 
-    // Use the selected source, or the first one if not specified
-    const source =
-      sources.find((source) => source.id === props.source) || sources[0];
-
-    // Load the selected source
-    const provider = await source.start(props);
-
     const getDefaultPosition = () => lastPosition;
 
-    // Resolve vessel/current to the nearest station the active source can
-    // serve. Using the provider (rather than a fixed database) keeps the
-    // redirect target valid for whichever source is selected.
-    const findNearestStation = async (position: PositionOptions) => {
-      if (!provider.stationsNear) return null;
-      const [nearest] = await Promise.resolve(
-        provider.stationsNear({ ...position, maxResults: 1 }),
-      );
-      return nearest ?? null;
-    };
+    // Mount the Neaps API, with vessel/current resolved to the nearest station.
+    // Cast needed: @neaps/api bundles its own Express types that conflict with local ones
+    activeRouter = withVesselPosition(
+      createRoutes({ prefix: MOUNT_PATH }) as unknown as RequestHandler,
+      getDefaultPosition,
+    );
 
-    // Set active router based on source
-    if (source.id === "neaps") {
-      const neapsRoutes = createRoutes({ prefix: MOUNT_PATH });
-      // Cast needed: @neaps/api bundles its own Express types that conflict with local ones
-      activeRouter = withVesselPosition(
-        neapsRoutes as unknown as RequestHandler,
-        getDefaultPosition,
-        findNearestStation,
-      );
-    } else {
-      activeRouter = withVesselPosition(
-        createAdapterRoutes(provider),
-        getDefaultPosition,
-        findNearestStation,
-      );
-    }
-
-    // Register the source as a resource provider
+    // Register tide predictions as a resource provider
     app.registerResourceProvider({
       type: "tides",
       methods: {
         async listResources() {
           if (!lastPosition) throw new Error("No position available");
-          const now = new Date();
-          const result = await provider.getExtremesPrediction({
-            latitude: lastPosition.latitude,
-            longitude: lastPosition.longitude,
-            start: now,
-            end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-          });
-          return result as unknown as Record<string, unknown>;
+          return forecastFor(lastPosition) as unknown as Record<string, unknown>;
         },
         getResource(): never {
           throw new Error("Not implemented");
@@ -167,7 +103,7 @@ export default function (app: SignalKApp): Plugin {
         subscribe: [
           {
             path: "navigation.position" as Path,
-            period: (props.period ?? defaultPeriod) * 60 * 1000,
+            period: UPDATE_INTERVAL,
             policy: "fixed",
           },
         ],
@@ -179,6 +115,16 @@ export default function (app: SignalKApp): Plugin {
       updatePosition,
     );
 
+    function forecastFor(position: Position): Forecast {
+      const now = new Date();
+      return getExtremesPrediction({
+        latitude: position.latitude,
+        longitude: position.longitude,
+        start: now,
+        end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+      });
+    }
+
     async function updatePosition() {
       lastPosition =
         (app.getSelfPath("navigation.position.value") as Position | undefined) ||
@@ -187,25 +133,19 @@ export default function (app: SignalKApp): Plugin {
 
       if (lastPosition) {
         await cache.set("position", lastPosition);
-        await updateForecast();
+        updateForecast();
       }
     }
 
-    async function updateForecast() {
+    function updateForecast() {
       if (!lastPosition) {
-        app.debug("No position available, cannot fetch tide data");
+        app.debug("No position available, cannot compute tide data");
         return;
       }
 
       try {
-        const now = new Date();
-        lastForecast = await provider.getExtremesPrediction({
-          latitude: lastPosition.latitude,
-          longitude: lastPosition.longitude,
-          start: now,
-          end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-        });
-        app.setPluginStatus("Updated tide forecast from " + source.title);
+        lastForecast = forecastFor(lastPosition);
+        app.setPluginStatus("Updated tide forecast");
         updateTides();
       } catch (e: unknown) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -215,12 +155,18 @@ export default function (app: SignalKApp): Plugin {
       }
     }
 
-    async function updateTides(now = new Date()) {
-      if (!lastForecast) return;
+    function updateTides(now = new Date()) {
+      if (!lastForecast || !lastPosition) return;
       // Get the next two upcoming extremes
       const nextTides = lastForecast.extremes
         .filter(({ time }) => time >= now)
         .slice(0, 2);
+
+      const heightNow = getWaterLevelAtTime({
+        latitude: lastPosition.latitude,
+        longitude: lastPosition.longitude,
+        time: now,
+      }).level;
 
       const delta: Delta = {
         context: ("vessels." + app.selfId) as Context,
@@ -234,7 +180,7 @@ export default function (app: SignalKApp): Plugin {
               },
               {
                 path: "environment.tide.heightNow" as Path,
-                value: approximateTideHeightAt(lastForecast.extremes, now),
+                value: heightNow,
               },
               ...nextTides.flatMap(({ label, time, level }) => {
                 return [
@@ -255,8 +201,8 @@ export default function (app: SignalKApp): Plugin {
 
     // Perform initial update on startup after short delay to allow gnss position to be populated
     delay(4000).then(updatePosition);
-    // Update every minute
-    setInterval(updateTides, 60 * 1000);
+    // Recompute the current height and next tides every minute
+    setInterval(updateTides, UPDATE_INTERVAL);
   }
 
   function delay(time: number) {
