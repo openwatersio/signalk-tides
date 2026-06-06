@@ -52,7 +52,7 @@
     "eslint": "^9.21.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^16.3.0",
+    "globals": "^17.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "signalk-server": "^2.13.5",
