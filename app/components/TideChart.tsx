@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as d3 from "d3";
 import { TideExtreme } from "../hooks/useTideData";
 import { useContainerDimensions } from "../hooks/useContainerDimensions";
@@ -25,15 +25,10 @@ export function TideChart({
   const container = useRef<HTMLDivElement>(null);
   const nowLine = useRef<SVGLineElement>(null);
   const { height = 0 } = useContainerDimensions(container) || {};
-  const [width, setWidth] = useState(0)
+  const width = useMemo(() => height / 4 * data.length, [height, data])
   const gx = useRef<SVGGElement>(null);
   const textPadding = 25;
   const yPadding = 0.3; // meters
-
-  // Adjust width relative to height and number of forecasts
-  useEffect(() => {
-    setWidth(height / 4 * data.length)
-  }, [height, data])
 
   function displayDepth(level: number) {
     return units === "m" ? `${level.toFixed(2)} m` : `${(level * 3.28084).toFixed(1)} ft`;
