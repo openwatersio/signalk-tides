@@ -19,6 +19,7 @@ import { RequestHandler } from "express";
 import { createRoutes } from "@neaps/api";
 import { getExtremesPrediction, getWaterLevelAtTime } from "neaps";
 import type { SignalKApp } from "./types.js";
+import { tideStateAt, timeToNextExtreme } from "./calculations.js";
 import FileCache from "./cache.js";
 import { withVesselPosition } from "./middleware.js";
 
@@ -173,6 +174,9 @@ export default function (app: SignalKApp): Plugin {
         time: now,
       }).level;
 
+      const state = tideStateAt(lastForecast.extremes, now);
+      const secondsToNextExtreme = timeToNextExtreme(lastForecast.extremes, now);
+
       const delta: Delta = {
         context: ("vessels." + app.selfId) as Context,
         updates: [
@@ -187,6 +191,14 @@ export default function (app: SignalKApp): Plugin {
                 path: "environment.tide.heightNow" as Path,
                 value: heightNow,
               },
+              // Omitted (not null) when the forecast has no upcoming extreme,
+              // matching how the nextTides flatMap below goes empty.
+              ...(state !== null
+                ? [{ path: "environment.tide.state" as Path, value: state }]
+                : []),
+              ...(secondsToNextExtreme !== null
+                ? [{ path: "environment.tide.timeToNextExtreme" as Path, value: secondsToNextExtreme }]
+                : []),
               ...nextTides.flatMap(({ label, time, level }) => {
                 return [
                   {
@@ -199,6 +211,19 @@ export default function (app: SignalKApp): Plugin {
                   },
                 ];
               }),
+            ],
+          },
+          {
+            timestamp: now.toISOString() as Timestamp,
+            meta: [
+              {
+                path: "environment.tide.state" as Path,
+                value: { description: "Tide trend at the current position: rising or falling" },
+              },
+              {
+                path: "environment.tide.timeToNextExtreme" as Path,
+                value: { units: "s", description: "Seconds until the next tide extreme (high or low water)" },
+              },
             ],
           },
         ],
