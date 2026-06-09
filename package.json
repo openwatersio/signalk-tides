@@ -67,7 +67,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
-    "jsdom": "^28.1.0",
+    "jsdom": "^29.1.1",
     "maplibre-gl": "^5.19.0",
     "nock": "^14.0.11",
     "pkg-pr-new": "^0.0.65",
