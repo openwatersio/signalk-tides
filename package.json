@@ -70,7 +70,7 @@
     "jsdom": "^28.1.0",
     "maplibre-gl": "^5.19.0",
     "nock": "^14.0.11",
-    "pkg-pr-new": "^0.0.65",
+    "pkg-pr-new": "^0.0.75",
     "playwright": "^1.58.2",
     "react-map-gl": "^8.1.0",
     "signalk-server": "^2.13.5",
