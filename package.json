@@ -1,7 +1,7 @@
 {
   "name": "signalk-tides",
   "version": "2.0.0-beta.0",
-  "description": "Tidal predictions for the vessel's position from various online sources.",
+  "description": "Tidal predictions for the vessel's position, powered by Neaps.",
   "type": "module",
   "main": "./dist/index.js",
   "exports": "./dist/index.js",

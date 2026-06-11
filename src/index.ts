@@ -200,13 +200,11 @@ export default function (app: SignalKApp): Plugin {
     }
 
     // Perform initial update on startup after short delay to allow gnss position to be populated
-    delay(4000).then(updatePosition);
+    const startupTimer = setTimeout(updatePosition, 4000);
+    unsubscribes.push(() => clearTimeout(startupTimer));
     // Recompute the current height and next tides every minute
-    setInterval(updateTides, UPDATE_INTERVAL);
-  }
-
-  function delay(time: number) {
-    return new Promise((resolve) => setTimeout(resolve, time));
+    const updateTimer = setInterval(updateTides, UPDATE_INTERVAL);
+    unsubscribes.push(() => clearInterval(updateTimer));
   }
 
   return plugin;
