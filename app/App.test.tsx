@@ -19,8 +19,9 @@ describe('App', () => {
   it('renders the tide station without errors or warnings', async () => {
     render(<App />);
 
-    // TideStation shows "Loading..." initially
-    expect(screen.getByText('Loading...')).toBeDefined();
+    // The tide station is gated behind unit preferences, so "Loading..."
+    // appears once the active preset resolves (a tick after render).
+    expect(await screen.findByText('Loading...')).toBeDefined();
 
     // Wait for the tide table to load with real data
     const table = await screen.findByRole('table', {}, { timeout: 10_000 });
