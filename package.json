@@ -18,8 +18,7 @@
   },
   "keywords": [
     "signalk-webapp",
-    "signalk-node-server-plugin",
-    "signalk-category-cloud"
+    "signalk-node-server-plugin"
   ],
   "author": {
     "name": "Brandon Keepers",
@@ -35,11 +34,11 @@
   ],
   "license": "Apache-2.0",
   "dependencies": {
-    "@neaps/api": "https://pkg.pr.new/openwatersio/neaps/@neaps/api@db4794f",
-    "@neaps/react": "https://pkg.pr.new/openwatersio/neaps/@neaps/react@db4794f",
+    "@neaps/api": "https://pkg.pr.new/openwatersio/neaps/@neaps/api@4eed5db",
+    "@neaps/react": "https://pkg.pr.new/openwatersio/neaps/@neaps/react@4eed5db",
     "@signalk/server-api": "^2.0",
     "express": "^4.0",
-    "neaps": "https://pkg.pr.new/openwatersio/neaps@db4794f",
+    "neaps": "https://pkg.pr.new/openwatersio/neaps@4eed5db",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

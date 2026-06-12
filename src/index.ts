@@ -27,16 +27,15 @@ type Forecast = ReturnType<typeof getExtremesPrediction>;
 // Recompute and republish on a fixed interval. Predictions are computed locally
 // by neaps, so this is cheap and needs no configuration.
 const UPDATE_INTERVAL = 60 * 1000; // 1 minute
+const API_PATH = "/signalk/v2/api/tides";
 
 export default function (app: SignalKApp): Plugin {
   let unsubscribes: (() => void)[] = [];
   let activeRouter: RequestHandler | null = null;
 
-  const MOUNT_PATH = "/signalk/v2/api/tides";
-
   // Mount forwarding middleware once (Express doesn't support unmounting)
   // @ts-expect-error: app is an Express app at runtime
-  app.use(MOUNT_PATH, (req, res, next) => {
+  app.use(API_PATH, (req, res, next) => {
     if (activeRouter) {
       activeRouter(req, res, next);
     } else {
@@ -47,9 +46,10 @@ export default function (app: SignalKApp): Plugin {
   const plugin: Plugin = {
     id: "tides",
     name: "Tides",
-    description: "Offline tidal predictions for the vessel's position, powered by Neaps.",
+    description:
+      "Offline tidal predictions for the vessel's position, powered by Neaps.",
     schema: () => ({
-      title: "Tides API",
+      title: "Tides",
       type: "object",
       properties: {},
     }),
@@ -62,19 +62,16 @@ export default function (app: SignalKApp): Plugin {
   };
 
   async function start() {
-    app.debug("Starting tides-api");
+    app.debug("Starting tides");
 
     let lastForecast: Forecast | null = null;
     let lastPosition: Position | null = null;
     const cache = new FileCache(app.getDataDirPath());
 
-    const getDefaultPosition = () => lastPosition;
-
     // Mount the Neaps API, with vessel/current resolved to the nearest station.
-    // Cast needed: @neaps/api bundles its own Express types that conflict with local ones
     activeRouter = withVesselPosition(
-      createRoutes({ prefix: MOUNT_PATH }) as unknown as RequestHandler,
-      getDefaultPosition,
+      createRoutes({ prefix: API_PATH }),
+      () => lastPosition,
     );
 
     // Register tide predictions as a resource provider
@@ -83,7 +80,10 @@ export default function (app: SignalKApp): Plugin {
       methods: {
         async listResources() {
           if (!lastPosition) throw new Error("No position available");
-          return forecastFor(lastPosition) as unknown as Record<string, unknown>;
+          return forecastFor(lastPosition) as unknown as Record<
+            string,
+            unknown
+          >;
         },
         getResource(): never {
           throw new Error("Not implemented");
@@ -126,15 +126,20 @@ export default function (app: SignalKApp): Plugin {
     }
 
     async function updatePosition() {
-      lastPosition =
-        (app.getSelfPath("navigation.position.value") as Position | undefined) ||
-        ((await cache.get("position")) as Position | undefined) ||
-        null;
+      const newPosition = app.getSelfPath("navigation.position.value");
 
-      if (lastPosition) {
+      // New position received, save it to the cache
+      if (newPosition) {
+        lastPosition = newPosition as Position | null;
         await cache.set("position", lastPosition);
-        updateForecast();
       }
+
+      // No last known position, try to load from cache.
+      if (!lastPosition) {
+        lastPosition = (await cache.get("position")) as Position;
+      }
+
+      if (lastPosition) updateForecast();
     }
 
     function updateForecast() {
@@ -184,8 +189,14 @@ export default function (app: SignalKApp): Plugin {
               },
               ...nextTides.flatMap(({ label, time, level }) => {
                 return [
-                  { path: `environment.tide.height${label}` as Path, value: level },
-                  { path: `environment.tide.time${label}` as Path, value: time.toISOString() },
+                  {
+                    path: `environment.tide.height${label}` as Path,
+                    value: level,
+                  },
+                  {
+                    path: `environment.tide.time${label}` as Path,
+                    value: time.toISOString(),
+                  },
                 ];
               }),
             ],

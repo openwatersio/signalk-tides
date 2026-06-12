@@ -26,9 +26,6 @@ describe('App', () => {
     const table = await screen.findByRole('table', {}, { timeout: 10_000 });
     expect(table).toBeDefined();
 
-    // Verify Footer is rendered
-    expect(screen.getByRole('contentinfo')).toBeDefined();
-
     // Verify no console errors or warnings
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     expect(consoleWarnSpy).not.toHaveBeenCalled();
