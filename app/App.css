@@ -4,39 +4,13 @@
 
 :root {
   color-scheme: dark;
+  background-color: var(--neaps-bg);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-html {
-  background: linear-gradient(
-    var(--neaps-bg),
-    color-mix(in srgb, var(--neaps-bg) 50%, #000)
-  );
-}
-
 body {
   margin: 0;
   min-height: 100vh;
-}
-
-.Position {
-  font-size: 0.9rem;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  display: inline-flex;
-  flex-direction: column;
-}
-
-.Position__Coordinate {
-  display: inline-flex;
-  flex-direction: row;
-  justify-content: end;
-  gap: 0.2rem;
-}
-
-.Position__Direction {
-  width: 1.5rem;
-  text-align: left;
 }

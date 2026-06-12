@@ -18,7 +18,9 @@ export default defineConfig({
       enabled: true,
       provider: playwright(),
       headless: true,
-      instances: [{ browser: 'chromium' }],
+      // Desktop-sized viewport so TideStation renders the stacked layout
+      // (it switches to a tabbed layout in narrow containers)
+      instances: [{ browser: 'chromium', viewport: { width: 1280, height: 800 } }],
     },
     include: ["app/**/*.test.{ts,tsx}"],
   },
