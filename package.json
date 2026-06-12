@@ -34,11 +34,11 @@
   ],
   "license": "Apache-2.0",
   "dependencies": {
-    "@neaps/api": "https://pkg.pr.new/openwatersio/neaps/@neaps/api@4eed5db",
-    "@neaps/react": "https://pkg.pr.new/openwatersio/neaps/@neaps/react@4eed5db",
+    "@neaps/api": "^0.5.1",
+    "@neaps/react": "^0.1.0",
     "@signalk/server-api": "^2.0",
     "express": "^4.0",
-    "neaps": "https://pkg.pr.new/openwatersio/neaps@4eed5db",
+    "neaps": "^0.7.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
