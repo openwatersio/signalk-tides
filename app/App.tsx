@@ -1,5 +1,4 @@
 import { NeapsProvider } from '@neaps/react'
-import '@neaps/react/styles.css'
 import './App.css'
 import { TideStation } from '@neaps/react';
 

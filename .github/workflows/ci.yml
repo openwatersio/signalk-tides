@@ -45,6 +45,7 @@ jobs:
         run: npm run test
 
   publish:
+    needs: [lint, test]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
