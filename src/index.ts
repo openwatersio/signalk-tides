@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-import { Context, Delta, Path, Plugin, Position, Timestamp } from "@signalk/server-api";
+import { Context, Delta, Path, Plugin, Position, ServerAPI, Timestamp } from "@signalk/server-api";
 import { RequestHandler } from "express";
 import { createRoutes } from "@neaps/api";
 import { getExtremesPrediction, getWaterLevelAtTime } from "neaps";
-import type { SignalKApp } from "./types.js";
 import { tideStateAt, timeToNextExtreme } from "./calculations.js";
 import FileCache from "./cache.js";
 import { withVesselPosition } from "./middleware.js";
@@ -30,7 +29,7 @@ type Forecast = ReturnType<typeof getExtremesPrediction>;
 const UPDATE_INTERVAL = 60 * 1000; // 1 minute
 const API_PATH = "/signalk/v2/api/tides";
 
-export default function (app: SignalKApp): Plugin {
+export default function (app: ServerAPI): Plugin {
   let unsubscribes: (() => void)[] = [];
   let activeRouter: RequestHandler | null = null;
 
