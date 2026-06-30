@@ -1,9 +1,9 @@
 /**
  * Middleware for handling vessel position queries and redirects
  */
-import { RequestHandler } from 'express';
-import { findStation, nearestStation } from 'neaps';
-import type { Position } from '@signalk/server-api';
+import { RequestHandler } from "express";
+import { findStation, nearestStation } from "neaps";
+import type { Position } from "@signalk/server-api";
 
 /**
  * Middleware that resolves the vessel/default station alias and bare

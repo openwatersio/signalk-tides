@@ -118,7 +118,10 @@ export default function (app: ServerAPI): Plugin {
     app.debug("Starting tides");
     config = (options ?? {}) as Config;
 
+    // Keep the forecast and the predictor that produced it together, so the
+    // extremes and the current height are always read from the same station.
     let lastForecast: Forecast | null = null;
+    let lastPredictor: Predictor | null = null;
     const cache = new FileCache(app.getDataDirPath());
 
     // Mount the Neaps API, with vessel/default resolved to the configured
@@ -222,11 +225,14 @@ export default function (app: ServerAPI): Plugin {
         app.debug(
           "No position or default station available, cannot compute tide data",
         );
+        lastForecast = null;
+        lastPredictor = null;
         return;
       }
 
       try {
         lastForecast = forecastFor(predictor);
+        lastPredictor = predictor;
         app.setPluginStatus("Updated tide forecast");
         updateTides();
       } catch (e: unknown) {
@@ -238,16 +244,14 @@ export default function (app: ServerAPI): Plugin {
     }
 
     function updateTides(now = new Date()) {
-      if (!lastForecast) return;
-      const predictor = resolvePredictor();
-      if (!predictor) return;
+      if (!lastForecast || !lastPredictor) return;
 
       // Get the next two upcoming extremes
       const nextTides = lastForecast.extremes
         .filter(({ time }) => time >= now)
         .slice(0, 2);
 
-      const heightNow = predictor.getWaterLevelAtTime({ time: now }).level;
+      const heightNow = lastPredictor.getWaterLevelAtTime({ time: now }).level;
 
       const state = tideStateAt(lastForecast.extremes, now);
       const secondsToNextExtreme = timeToNextExtreme(
