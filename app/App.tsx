@@ -3,7 +3,7 @@ import './App.css'
 import { TideStation } from '@neaps/react';
 import { useUnitPreferences } from './hooks/useUnitPreferences'
 
-const VESSEL_STATION_ID = 'vessel/current';
+const VESSEL_STATION_ID = 'vessel/default';
 const { VITE_SIGNALK_URL = window.location.toString() } = import.meta.env;
 const API_BASE_URL = new URL("/signalk/v2/api", VITE_SIGNALK_URL).toString();
 

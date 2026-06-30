@@ -17,12 +17,17 @@
 import { Context, Delta, Path, Plugin, Position, ServerAPI, Timestamp } from "@signalk/server-api";
 import { RequestHandler } from "express";
 import { createRoutes } from "@neaps/api";
-import { getExtremesPrediction, getWaterLevelAtTime } from "neaps";
+import { findStation, nearestStation, stationsNear } from "neaps";
 import { tideStateAt, timeToNextExtreme } from "./calculations.js";
 import FileCache from "./cache.js";
 import { withVesselPosition } from "./middleware.js";
 
-type Forecast = ReturnType<typeof getExtremesPrediction>;
+type Predictor = ReturnType<typeof findStation>;
+type Forecast = ReturnType<Predictor["getExtremesPrediction"]>;
+
+interface Config {
+  defaultStation?: string;
+}
 
 // Recompute and republish on a fixed interval. Predictions are computed locally
 // by neaps, so this is cheap and needs no configuration.
@@ -32,6 +37,8 @@ const API_PATH = "/signalk/v2/api/tides";
 export default function (app: ServerAPI): Plugin {
   let unsubscribes: (() => void)[] = [];
   let activeRouter: RequestHandler | null = null;
+  let lastPosition: Position | null = null;
+  let config: Config = {};
 
   // Mount forwarding middleware once (Express doesn't support unmounting)
   // @ts-expect-error: app is an Express app at runtime
@@ -51,7 +58,16 @@ export default function (app: ServerAPI): Plugin {
     schema: () => ({
       title: "Tides",
       type: "object",
-      properties: {},
+      properties: {
+        defaultStation: {
+          type: "string",
+          title: "Default tide station",
+          description:
+            "Use the closest station to the vessel's current position, or pick a default nearby station.",
+          default: "auto",
+          oneOf: defaultStationOptions(),
+        },
+      },
     }),
     start,
     stop() {
@@ -61,17 +77,59 @@ export default function (app: ServerAPI): Plugin {
     },
   };
 
-  async function start() {
-    app.debug("Starting tides");
+  function defaultStationOptions(): { const: string; title: string }[] {
+    const options = [{ const: "auto", title: "Closest station" }];
 
+    if (lastPosition) {
+      for (const station of stationsNear({ ...lastPosition, maxResults: 10 })) {
+        options.push({ const: station.id, title: stationTitle(station) });
+      }
+    }
+
+    // Keep the saved station selectable even when it is not in the nearby
+    // list, so opening the settings far from it (or before a position fix)
+    // cannot clobber it on save.
+    const saved = savedDefaultStation();
+    if (saved && saved !== "auto" && !options.some((o) => o.const === saved)) {
+      let title = saved;
+      try {
+        title = stationTitle(findStation(saved));
+      } catch {
+        // Unknown id: keep the raw value as the label
+      }
+      options.splice(1, 0, { const: saved, title });
+    }
+
+    return options;
+  }
+
+  function savedDefaultStation(): string | undefined {
+    try {
+      const saved = app.readPluginOptions() as {
+        configuration?: Config | null;
+      };
+      return saved?.configuration?.defaultStation;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function start(options?: object) {
+    app.debug("Starting tides");
+    config = (options ?? {}) as Config;
+
+    // Keep the forecast and the predictor that produced it together, so the
+    // extremes and the current height are always read from the same station.
     let lastForecast: Forecast | null = null;
-    let lastPosition: Position | null = null;
+    let lastPredictor: Predictor | null = null;
     const cache = new FileCache(app.getDataDirPath());
 
-    // Mount the Neaps API, with vessel/current resolved to the nearest station.
+    // Mount the Neaps API, with vessel/default resolved to the configured
+    // default station (or the nearest one).
     activeRouter = withVesselPosition(
       createRoutes({ prefix: API_PATH }),
       () => lastPosition,
+      () => config.defaultStation ?? null,
     );
 
     // Register tide predictions as a resource provider
@@ -79,11 +137,11 @@ export default function (app: ServerAPI): Plugin {
       type: "tides",
       methods: {
         async listResources() {
-          if (!lastPosition) throw new Error("No position available");
-          return forecastFor(lastPosition) as unknown as Record<
-            string,
-            unknown
-          >;
+          const predictor = resolvePredictor();
+          if (!predictor) {
+            throw new Error("No position or default station available");
+          }
+          return forecastFor(predictor) as unknown as Record<string, unknown>;
         },
         getResource(): never {
           throw new Error("Not implemented");
@@ -115,11 +173,29 @@ export default function (app: ServerAPI): Plugin {
       updatePosition,
     );
 
-    function forecastFor(position: Position): Forecast {
+    function resolvePredictor(): Predictor | null {
+      if (config.defaultStation && config.defaultStation !== "auto") {
+        try {
+          return findStation(config.defaultStation);
+        } catch {
+          app.error(
+            `Configured tide station not found: ${config.defaultStation}`,
+          );
+        }
+      }
+      if (lastPosition) {
+        try {
+          return nearestStation(lastPosition);
+        } catch {
+          app.error("No tide station found near vessel position");
+        }
+      }
+      return null;
+    }
+
+    function forecastFor(predictor: Predictor): Forecast {
       const now = new Date();
-      return getExtremesPrediction({
-        latitude: position.latitude,
-        longitude: position.longitude,
+      return predictor.getExtremesPrediction({
         start: now,
         end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
       });
@@ -139,17 +215,24 @@ export default function (app: ServerAPI): Plugin {
         lastPosition = (await cache.get("position")) as Position;
       }
 
-      if (lastPosition) updateForecast();
+      // A configured default station predicts without a position
+      updateForecast();
     }
 
     function updateForecast() {
-      if (!lastPosition) {
-        app.debug("No position available, cannot compute tide data");
+      const predictor = resolvePredictor();
+      if (!predictor) {
+        app.debug(
+          "No position or default station available, cannot compute tide data",
+        );
+        lastForecast = null;
+        lastPredictor = null;
         return;
       }
 
       try {
-        lastForecast = forecastFor(lastPosition);
+        lastForecast = forecastFor(predictor);
+        lastPredictor = predictor;
         app.setPluginStatus("Updated tide forecast");
         updateTides();
       } catch (e: unknown) {
@@ -161,20 +244,20 @@ export default function (app: ServerAPI): Plugin {
     }
 
     function updateTides(now = new Date()) {
-      if (!lastForecast || !lastPosition) return;
+      if (!lastForecast || !lastPredictor) return;
+
       // Get the next two upcoming extremes
       const nextTides = lastForecast.extremes
         .filter(({ time }) => time >= now)
         .slice(0, 2);
 
-      const heightNow = getWaterLevelAtTime({
-        latitude: lastPosition.latitude,
-        longitude: lastPosition.longitude,
-        time: now,
-      }).level;
+      const heightNow = lastPredictor.getWaterLevelAtTime({ time: now }).level;
 
       const state = tideStateAt(lastForecast.extremes, now);
-      const secondsToNextExtreme = timeToNextExtreme(lastForecast.extremes, now);
+      const secondsToNextExtreme = timeToNextExtreme(
+        lastForecast.extremes,
+        now,
+      );
 
       const delta: Delta = {
         context: ("vessels." + app.selfId) as Context,
@@ -196,7 +279,12 @@ export default function (app: ServerAPI): Plugin {
                 ? [{ path: "environment.tide.state" as Path, value: state }]
                 : []),
               ...(secondsToNextExtreme !== null
-                ? [{ path: "environment.tide.timeToNextExtreme" as Path, value: secondsToNextExtreme }]
+                ? [
+                    {
+                      path: "environment.tide.timeToNextExtreme" as Path,
+                      value: secondsToNextExtreme,
+                    },
+                  ]
                 : []),
               ...nextTides.flatMap(({ label, time, level }) => {
                 return [
@@ -217,11 +305,18 @@ export default function (app: ServerAPI): Plugin {
             meta: [
               {
                 path: "environment.tide.state" as Path,
-                value: { description: "Tide trend at the current position: rising or falling" },
+                value: {
+                  description:
+                    "Tide trend at the current position: rising or falling",
+                },
               },
               {
                 path: "environment.tide.timeToNextExtreme" as Path,
-                value: { units: "s", description: "Seconds until the next tide extreme (high or low water)" },
+                value: {
+                  units: "s",
+                  description:
+                    "Seconds until the next tide extreme (high or low water)",
+                },
               },
             ],
           },
@@ -243,4 +338,11 @@ export default function (app: ServerAPI): Plugin {
   }
 
   return plugin;
+}
+
+function stationTitle(station: Predictor): string {
+  const where = [station.region, station.country].filter(Boolean).join(", ");
+  const distance =
+    station.distance != null ? ` — ${station.distance.toFixed(1)} km` : "";
+  return `${station.name}${where ? ` (${where})` : ""}${distance}`;
 }
