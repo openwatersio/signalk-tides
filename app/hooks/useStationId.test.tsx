@@ -32,6 +32,20 @@ describe('useStationId', () => {
     expect(window.location.search).toBe('');
   });
 
+  it('treats an empty ?station= as the vessel station', () => {
+    window.history.replaceState(null, '', '?station=');
+    const { result } = renderHook(() => useStationId());
+    expect(result.current[0]).toBe(VESSEL_STATION_ID);
+  });
+
+  it('never writes a blank station id', () => {
+    window.history.replaceState(null, '', '?station=noaa%2F9447130');
+    const { result } = renderHook(() => useStationId());
+    act(() => result.current[1]('   '));
+    expect(result.current[0]).toBe(VESSEL_STATION_ID);
+    expect(window.location.search).toBe('');
+  });
+
   it('preserves neaps’s hash when writing the station', () => {
     window.history.replaceState(null, '', '#graph');
     const { result } = renderHook(() => useStationId());

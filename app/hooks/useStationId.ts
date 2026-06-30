@@ -3,8 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 // The SignalK plugin resolves this id to the station nearest the vessel.
 export const VESSEL_STATION_ID = "vessel/default";
 
+// `||` (not `??`) so an empty `?station=` falls back to the vessel station too.
 const readStation = () =>
-  new URLSearchParams(window.location.search).get("station") ?? VESSEL_STATION_ID;
+  new URLSearchParams(window.location.search).get("station") || VESSEL_STATION_ID;
 
 // Tracks the station being viewed in the `?station=` query param so the view is
 // shareable and back/forward navigable. neaps owns the URL hash (TideStation's
@@ -18,7 +19,8 @@ export function useStationId(): [string, (id: string) => void] {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const select = useCallback((next: string) => {
+  const select = useCallback((raw: string) => {
+    const next = raw.trim() || VESSEL_STATION_ID; // never write a blank id
     const url = new URL(window.location.href); // preserves neaps's #tab hash
     if (next === VESSEL_STATION_ID) url.searchParams.delete("station");
     else url.searchParams.set("station", next);

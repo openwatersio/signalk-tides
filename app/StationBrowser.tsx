@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   NearbyStations,
   StationSearch,
@@ -31,21 +31,16 @@ export function StationBrowser({ stationId, onSelect }: StationBrowserProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
 
-  // Only mount the map (WebGL) on desktop, matching the `lg` breakpoint.
+  // Only mount the map (WebGL) on desktop. Evaluated when the modal opens —
+  // the decision only matters while it's open, so no resize listener is needed.
   const [desktop, setDesktop] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const update = () => setDesktop(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
 
   // The active station's coordinates, used to centre and highlight the map.
   // Resolves `vessel/default` to its real station server-side, same as TideStation.
   const { data: current } = useStation(stationId);
 
   const show = () => {
+    setDesktop(window.matchMedia("(min-width: 1024px)").matches);
     setOpen(true);
     dialog.current?.showModal();
   };
