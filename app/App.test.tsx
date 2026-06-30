@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import App from './App';
 
 describe('App', () => {
@@ -30,5 +31,15 @@ describe('App', () => {
     // Verify no console errors or warnings
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     expect(consoleWarnSpy).not.toHaveBeenCalled();
+  });
+
+  it('opens the station browser from the menu button', async () => {
+    render(<App />);
+
+    const menu = await screen.findByRole('button', { name: /browse stations/i });
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    await userEvent.click(menu);
+    expect(await screen.findByRole('dialog')).toBeDefined();
   });
 });
