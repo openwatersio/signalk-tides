@@ -37,7 +37,7 @@
     "@neaps/api": "^0.5.1",
     "@neaps/react": "^0.1.0",
     "@signalk/server-api": "^2.28.0",
-    "express": "^4.0",
+    "express": "^5.2",
     "neaps": "^0.7.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
