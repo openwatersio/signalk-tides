@@ -23,14 +23,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Bump version to release tag
-        run: |
-          npm version "${TAG#v}" --no-git-tag-version --allow-same-version
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --quiet || { git commit -am "Release ${TAG#v}" && git push; }
+      - name: Set version to release tag
+        run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version
         env:
           TAG: ${{ github.event.release.tag_name }}
 
       - name: Publish to npm
         run: npm publish # prepack runs the build
+
+      # Only after a successful publish, so a failed release never mutates the repo
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet || { git commit -am "Release ${TAG#v}" && git push; }
+        env:
+          TAG: ${{ github.event.release.tag_name }}
