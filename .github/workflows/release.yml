@@ -25,11 +25,10 @@ jobs:
 
       - name: Bump version to release tag
         run: |
-          npm version "${TAG#v}" --no-git-tag-version
+          npm version "${TAG#v}" --no-git-tag-version --allow-same-version
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -am "Release ${TAG#v}"
-          git push
+          git diff --quiet || { git commit -am "Release ${TAG#v}" && git push; }
         env:
           TAG: ${{ github.event.release.tag_name }}
 

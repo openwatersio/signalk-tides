@@ -76,7 +76,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bkeepers/signalk-tides.git"
+    "url": "git+https://github.com/openwatersio/signalk-tides.git"
   },
   "signalk-plugin-enabled-by-default": true,
   "signalk": {
