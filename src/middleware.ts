@@ -86,8 +86,19 @@ export function withVesselPosition(
 
       const pos = getPosition();
       if (pos) {
-        req.query.latitude = String(pos.latitude);
-        req.query.longitude = String(pos.longitude);
+        // Express 5 makes `req.query` a read-only getter, so assigning to its
+        // properties is silently lost. Shadow it with an own data property,
+        // which behaves identically on Express 4 and 5.
+        Object.defineProperty(req, "query", {
+          value: {
+            ...req.query,
+            latitude: String(pos.latitude),
+            longitude: String(pos.longitude),
+          },
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
       }
     }
 
