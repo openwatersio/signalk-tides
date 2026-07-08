@@ -74,7 +74,7 @@ export function StationBrowser({ stationId, onSelect }: StationBrowserProps) {
         onClick={(e) => {
           // Light-dismiss: a native modal dialog ignores backdrop taps, so close
           // when the click lands on the dialog element itself rather than content.
-          if (e.target === dialog.current) dialog.current?.close();
+          if (e.target === e.currentTarget) e.currentTarget.close();
         }}
         className="m-auto w-[min(92vw,900px)] max-h-[85vh] rounded-lg border border-(--neaps-border) bg-(--neaps-bg) p-0 text-(--neaps-text) backdrop:bg-black/50"
       >
