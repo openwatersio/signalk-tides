@@ -3,6 +3,7 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
     "noEmit": true,
+    "rootDir": "."
   },
   "include": ["test"]
 }
