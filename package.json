@@ -63,7 +63,7 @@
     "globals": "^17.5.0",
     "jsdom": "^29.1.1",
     "maplibre-gl": "^5.19.0",
-    "pkg-pr-new": "^0.0.75",
+    "pkg-pr-new": "^0.0.78",
     "playwright": "^1.58.2",
     "react-map-gl": "^8.1.0",
     "signalk-server": "^2.13.5",
