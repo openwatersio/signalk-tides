@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+// The real page (graph.html -> graph.tsx) loads this; pull it in so styling
+// behaviour — e.g. the repositioned readout — is exercised as it ships.
+import "../web/widgets.css";
 
 // Fake host bus: answers units.get, map.getView, and the persisted config so
 // the widget resolves without the real postMessage handshake. This mirrors a
@@ -63,6 +66,20 @@ describe("TideGraphWidget", () => {
         container.querySelector(".tide-graph-station")?.textContent?.trim(),
       ).toBeTruthy(),
     );
+
+    // The current time/level readout is pushed off centre to the bottom edge.
+    // Guards the CSS hook into the chart's internal markup: if @neaps/react
+    // restructures that group, the selector silently stops matching and the
+    // readout drifts back over the curve.
+    const fill = container.querySelector<HTMLElement>(".tide-graph-fill");
+    expect(fill?.style.getPropertyValue("--tide-readout-shift")).toMatch(
+      /^\d+(\.\d+)?px$/,
+    );
+    const readoutBox = container.querySelector(
+      '.tide-graph-svg g[pointer-events="none"] > rect',
+    );
+    expect(readoutBox).not.toBeNull();
+    expect(getComputedStyle(readoutBox!).transform).not.toBe("none");
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     expect(consoleWarnSpy).not.toHaveBeenCalled();

@@ -18,7 +18,7 @@ import {
   type Units,
   type UseTimelineParams,
 } from "@neaps/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   WINDOW_DAYS,
   useTideGraphHost,
@@ -39,6 +39,28 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 // A little past-time so "now" isn't pinned hard against the left edge.
 const LOOKBACK_MS = HOUR_MS;
+
+// TideGraphChart draws the current time/level readout centred vertically
+// (`labelY = innerH / 2`), which in a short 2x1 tile sits right on top of the
+// curve. There is no prop for it, so we shift just that label down via CSS (see
+// `--tide-readout-shift` in widgets.css) to sit near the bottom edge instead.
+// These mirror the chart's own layout constants; if they drift, the readout is
+// merely offset differently — nothing breaks.
+const CHART_MARGIN_TOP = 65;
+const CHART_MARGIN_BOTTOM = 40;
+const READOUT_HALF_HEIGHT = 18;
+const READOUT_BOTTOM_GAP = 3;
+
+/** How far to push the readout down so it clears the bottom edge by 3px. */
+function readoutShift(graphHeight: number): number {
+  const innerH = Math.max(
+    0,
+    graphHeight - CHART_MARGIN_TOP - CHART_MARGIN_BOTTOM,
+  );
+  const target =
+    innerH + CHART_MARGIN_BOTTOM - READOUT_BOTTOM_GAP - READOUT_HALF_HEIGHT;
+  return Math.max(0, target - innerH / 2);
+}
 
 const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const EMPTY_TIMELINE: TimelineEntry[] = [];
@@ -119,7 +141,15 @@ function StaticGraph({
   const failed = timelineQuery.isError || extremesQuery.isError;
 
   return (
-    <div ref={ref} className="tide-graph-fill">
+    <div
+      ref={ref}
+      className="tide-graph-fill"
+      style={
+        {
+          "--tide-readout-shift": `${readoutShift(graphHeight)}px`,
+        } as CSSProperties
+      }
+    >
       {hasData ? (
         <>
           <TideGraphChart

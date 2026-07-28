@@ -62,6 +62,17 @@ body {
   pointer-events: none;
 }
 
+/* Move the current time/level readout off the vertical centre (where the chart
+ * hard-codes it, obscuring the curve in a short 2x1 tile) down to just above the
+ * bottom edge. The chart's readout group is its only pointer-events="none"
+ * group; it holds the full-height "now" line plus the label's box and text, so
+ * only the box/text are shifted — moving the group would drag the line down
+ * too. Offset comes from the widget (see readoutShift in TideGraphWidget). */
+.tide-graph-svg g[pointer-events="none"] > rect,
+.tide-graph-svg g[pointer-events="none"] > text {
+  transform: translateY(var(--tide-readout-shift, 0));
+}
+
 .tide-graph-placeholder {
   margin: auto;
   padding: 0.5rem;
