@@ -112,7 +112,10 @@ function StaticGraph({
   const currentLevel = useCurrentLevel(timeline);
 
   const graphHeight = Math.max(MIN_GRAPH_HEIGHT, Math.round(height) || 0);
-  const hasData = width > 0 && timeline.length > 0;
+  // Both halves are required: the curve without its high/low markers is a
+  // misleading partial chart, so a failed extremes query is "unavailable", not
+  // a graph to draw.
+  const hasData = width > 0 && timeline.length > 0 && extremes.length > 0;
   const failed = timelineQuery.isError || extremesQuery.isError;
 
   return (

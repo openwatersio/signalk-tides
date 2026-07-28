@@ -30,12 +30,14 @@ export function GraphConfig() {
 
   useEffect(() => {
     let cancelled = false;
+    let established: ExtensionClient | null = null;
     (async () => {
       const c = await connectHost();
       if (cancelled) {
         c?.close();
         return;
       }
+      established = c;
       setClient(c);
       setMapSupported(!!c && hasCapability(c, "map"));
       const config = await readConfig(c);
@@ -46,6 +48,9 @@ export function GraphConfig() {
     })();
     return () => {
       cancelled = true;
+      // The panel is opened and dismissed repeatedly; close its connection so
+      // bus ports don't accumulate across openings.
+      established?.close();
     };
   }, []);
 

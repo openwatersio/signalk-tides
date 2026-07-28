@@ -126,9 +126,15 @@ export async function resolveUnits(client: ExtensionClient | null): Promise<Unit
     }
   }
 
+  // Bounded: the widget blocks on this before it can render, so a server that
+  // accepts the connection but never answers must not wedge it on "Loading".
+  // An abort is just another failure — fall through to the locale default.
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS);
   try {
     const res = await fetch("/signalk/v1/unitpreferences/active", {
       credentials: "include",
+      signal: controller.signal,
     });
     if (res.ok) {
       const body = (await res.json()) as {
@@ -139,6 +145,8 @@ export async function resolveUnits(client: ExtensionClient | null): Promise<Unit
     }
   } catch (err) {
     console.warn("tide-graph: unit preferences fetch failed", err);
+  } finally {
+    clearTimeout(abortTimer);
   }
 
   return fallback;
@@ -275,6 +283,7 @@ export function useTideGraphHost(): HostState {
     let cancelled = false;
     let removeLongPress: (() => void) | null = null;
     let unsubscribe: (() => Promise<void>) | null = null;
+    let established: ExtensionClient | null = null;
 
     (async () => {
       const connected = await connectHost();
@@ -282,6 +291,7 @@ export function useTideGraphHost(): HostState {
         connected?.close();
         return;
       }
+      established = connected;
 
       const [units, config] = await Promise.all([
         resolveUnits(connected),
@@ -313,7 +323,11 @@ export function useTideGraphHost(): HostState {
     return () => {
       cancelled = true;
       removeLongPress?.();
-      unsubscribe?.().catch(() => {});
+      // Close the connection too, not just its listeners: a remounted widget
+      // would otherwise accumulate bus ports for the life of the page.
+      Promise.resolve(unsubscribe?.())
+        .catch(() => {})
+        .finally(() => established?.close());
     };
   }, []);
 
