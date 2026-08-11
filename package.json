@@ -60,7 +60,7 @@
     "jsdom": "^30.0.1",
     "maplibre-gl": "^5.19.0",
     "oxlint": "^1.74.0",
-    "pkg-pr-new": "^0.0.82",
+    "pkg-pr-new": "^0.0.87",
     "playwright": "^1.58.2",
     "react-map-gl": "^8.1.0",
     "signalk-server": "^2.13.5",
