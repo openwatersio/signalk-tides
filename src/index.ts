@@ -127,7 +127,9 @@ export default function (app: ServerAPI): Plugin {
     // Mount the Neaps API, with vessel/default resolved to the configured
     // default station (or the nearest one).
     activeRouter = withVesselPosition(
-      createRoutes({ prefix: API_PATH }),
+      // @neaps/api bundles its own Express declarations, so its Router is
+      // callable at runtime but not structurally compatible with ours.
+      createRoutes({ prefix: API_PATH }) as unknown as RequestHandler,
       () => lastPosition,
       () => config.defaultStation ?? null,
     );
