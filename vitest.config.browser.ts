@@ -22,6 +22,6 @@ export default defineConfig({
       // (it switches to a tabbed layout in narrow containers)
       instances: [{ browser: 'chromium', viewport: { width: 1280, height: 800 } }],
     },
-    include: ["app/**/*.test.{ts,tsx}"],
+    include: ["app/**/*.test.{ts,tsx}", "widgets/test/**/*.test.tsx"],
   },
 });

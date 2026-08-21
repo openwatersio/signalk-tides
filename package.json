@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "exports": "./dist/index.js",
   "scripts": {
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && vite build --config widgets/vite.config.mts",
     "dev": "vite",
     "lint": "oxlint",
     "prepack": "npm run build",
@@ -40,7 +40,8 @@
     "express": "^5.2.1",
     "neaps": "^0.7.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "signalk-plotterext-bus": "^0.10.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",

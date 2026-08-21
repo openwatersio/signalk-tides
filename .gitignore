@@ -26,3 +26,7 @@ dist-ssr
 package-lock.json
 dist
 .env*
+
+# Vitest browser-mode artifacts (failure screenshots / attachments)
+__screenshots__
+.vitest-attachments

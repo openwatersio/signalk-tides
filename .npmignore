@@ -9,3 +9,9 @@
 /*config.{mjs,js,ts,mts}
 /test
 /index.html
+
+# Widget source ships only as the built widgets/dist assets.
+/widgets/web
+/widgets/test
+/widgets/SPEC.md
+/widgets/vite.config.mts
