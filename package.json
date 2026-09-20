@@ -35,7 +35,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@neaps/api": "^0.6.0",
-    "@neaps/react": "^0.1.1",
+    "@neaps/react": "^0.2.0",
     "@signalk/server-api": "^2.28.0",
     "express": "^5.2.1",
     "neaps": "^0.7.0",
