@@ -1,0 +1,142 @@
+/* Translucent-dark theme for the tide-graph widget and its config panel. The
+ * widget is a guest on someone else's chart: transparent page, a subtle dark
+ * scrim behind the curve so it stays legible over both light and dark maps,
+ * no scrollbars, and it fills whatever frame the host gives it.
+ *
+ * Mirrors app/App.css: pull in Tailwind and @neaps/react's theme, and @source
+ * the neaps dist so the utility classes its components use are generated. */
+
+@import "tailwindcss";
+@import "@neaps/react/styles.css";
+@source "../../node_modules/@neaps/react/dist";
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  color: #f1f5f9;
+  overscroll-behavior: none;
+}
+
+#root {
+  height: 100%;
+}
+
+/* ---- Widget ---- */
+
+.tide-graph-root,
+.tide-graph-fill {
+  height: 100%;
+  width: 100%;
+}
+
+.tide-graph-root {
+  display: flex;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.tide-graph-fill {
+  position: relative;
+}
+
+/* The static chart is a display, not a control: no pointer interaction (no
+ * scroll, tooltip, or selection). Pointer events pass through to the window,
+ * where the long-press-to-configure gesture still listens. */
+.tide-graph-svg {
+  display: block;
+  pointer-events: none;
+}
+
+/* Move the current time/level readout off the vertical centre (where the chart
+ * hard-codes it, obscuring the curve in a short 2x1 tile) down to just above the
+ * bottom edge. The chart's readout group is its only pointer-events="none"
+ * group; it holds the full-height "now" line plus the label's box and text, so
+ * only the box/text are shifted — moving the group would drag the line down
+ * too. Offset comes from the widget (see readoutShift in TideGraphWidget). */
+.tide-graph-svg g[pointer-events="none"] > rect,
+.tide-graph-svg g[pointer-events="none"] > text {
+  transform: translateY(var(--tide-readout-shift, 0));
+}
+
+.tide-graph-placeholder {
+  margin: auto;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+/* Station name, pinned top-left in the chart's blank left/top margin. Clipped
+ * with an ellipsis and capped short of centre so it never runs into the date
+ * label the chart draws over each day (around local noon). */
+.tide-graph-station {
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  max-width: 45%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ---- Config panel ---- */
+
+.tide-panel {
+  background: transparent;
+}
+
+.tide-config {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  min-width: 12rem;
+}
+
+.tide-config-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.tide-config-select {
+  appearance: none;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.875rem;
+  color: #f1f5f9;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid #334155;
+  border-radius: 6px;
+}
+
+.tide-config-select:disabled {
+  opacity: 0.6;
+}
+
+.tide-config-hint {
+  margin: 0;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: #94a3b8;
+}

@@ -21,6 +21,7 @@ import { findStation, nearestStation, stationsNear } from "neaps";
 import { tideStateAt, timeToNextExtreme } from "./calculations.js";
 import FileCache from "./cache.js";
 import { withVesselPosition } from "./middleware.js";
+import { registerTideGraphWidget } from "./plotterext.js";
 
 type Predictor = ReturnType<typeof findStation>;
 type Forecast = ReturnType<Predictor["getExtremesPrediction"]>;
@@ -117,6 +118,9 @@ export default function (app: ServerAPI): Plugin {
   async function start(options?: object) {
     app.debug("Starting tides");
     config = (options ?? {}) as Config;
+
+    // Contribute the 2x1 tide-graph widget to Plotter Extensions hosts.
+    registerTideGraphWidget(app);
 
     // Keep the forecast and the predictor that produced it together, so the
     // extremes and the current height are always read from the same station.
