@@ -5,7 +5,7 @@ import type { Request, Response, Router } from 'express';
 import type { Position } from '@signalk/server-api';
 import { withVesselPosition } from '../src/middleware.js';
 
-// Mock slackwater' station lookups — the middleware only reads `.id` off the result.
+// Mock slackwater's station lookups — the middleware only reads `.id` off the result.
 vi.mock('slackwater', () => ({ nearestStation: vi.fn(), findStation: vi.fn() }));
 const { nearestStation, findStation } = await import('slackwater');
 
