@@ -1,9 +1,9 @@
 /**
- * Shared @neaps/api dev server logic
+ * Shared @slackwater/api dev server logic
  * Used by both the Vite dev plugin and Vitest browser tests
  */
 import express, { RequestHandler } from 'express';
-import { createRoutes } from '@neaps/api';
+import { createRoutes } from '@slackwater/api';
 import type { Position } from '@signalk/server-api';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
@@ -49,11 +49,11 @@ export async function startTidesDevServer(): Promise<number> {
     res.json({ status: 'ok', position: mockPosition });
   });
 
-  // Create and mount @neaps/api routes with vessel position middleware
-  const neapsRoutes = createRoutes({ prefix: MOUNT_PATH });
+  // Create and mount @slackwater/api routes with vessel position middleware
+  const slackwaterRoutes = createRoutes();
   const getPosition = () => mockPosition;
   app.use(MOUNT_PATH, withVesselPosition(
-    neapsRoutes as unknown as RequestHandler,
+    slackwaterRoutes as unknown as RequestHandler,
     getPosition,
   ));
 

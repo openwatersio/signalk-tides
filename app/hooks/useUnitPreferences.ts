@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { type Units, getDefaultUnits } from "@neaps/react";
+import { type Units, getDefaultUnits } from "@slackwater/react";
 
 const { VITE_SIGNALK_URL = window.location.toString() } = import.meta.env;
 export const UNIT_PREFERENCES_URL = new URL(
@@ -19,7 +19,7 @@ export interface UnitPreferences {
   ready: boolean;
 }
 
-// Maps the SignalK `depth` category's targetUnit onto a neaps `Units` value.
+// Maps the SignalK `depth` category's targetUnit onto a slackwater `Units` value.
 // The six built-in presets only ever use "foot" or "m" for depth; anything
 // else (custom unit, missing category) falls back to the locale default.
 function unitsFromPreset(preset: ActivePreset, fallback: Units): Units {

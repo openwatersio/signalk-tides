@@ -1,10 +1,10 @@
 @import "tailwindcss";
-@import "@neaps/react/styles.css";
-@source "../node_modules/@neaps/react/dist";
+@import "@slackwater/react/styles.css";
+@source "../node_modules/@slackwater/react/dist";
 
 :root {
   color-scheme: dark;
-  background-color: var(--neaps-bg);
+  background-color: var(--slackwater-bg);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

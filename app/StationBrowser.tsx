@@ -5,7 +5,7 @@ import {
   StationsMap,
   useStation,
   type StationSummary,
-} from "@neaps/react";
+} from "@slackwater/react";
 import { VESSEL_STATION_ID } from "./hooks/useStationId";
 
 // No API key needed; OSM raster tiles are enough for browsing stations.
@@ -59,7 +59,7 @@ export function StationBrowser({ stationId, onSelect }: StationBrowserProps) {
         type="button"
         onClick={show}
         aria-label="Browse stations"
-        className="absolute hidden min-[20rem]:block right-2 top-2 sm:right-4 sm:top-4 md:right-6 md:top-6 lg:right-8 lg:top-8 xl:right-20 xl:top-20 z-10 rounded-md border border-(--neaps-border) bg-(--neaps-bg-subtle) p-2 text-(--neaps-text) hover:bg-(--neaps-bg)"
+        className="absolute hidden min-[20rem]:block right-2 top-2 sm:right-4 sm:top-4 md:right-6 md:top-6 lg:right-8 lg:top-8 xl:right-20 xl:top-20 z-10 rounded-md border border-(--slackwater-border) bg-(--slackwater-bg-subtle) p-2 text-(--slackwater-text) hover:bg-(--slackwater-bg)"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <line x1="3" y1="6" x2="21" y2="6" />
@@ -76,16 +76,16 @@ export function StationBrowser({ stationId, onSelect }: StationBrowserProps) {
           // when the click lands on the dialog element itself rather than content.
           if (e.target === e.currentTarget) e.currentTarget.close();
         }}
-        className="m-auto w-[min(92vw,900px)] max-h-[85vh] rounded-lg border border-(--neaps-border) bg-(--neaps-bg) p-0 text-(--neaps-text) backdrop:bg-black/50"
+        className="m-auto w-[min(92vw,900px)] max-h-[85vh] rounded-lg border border-(--slackwater-border) bg-(--slackwater-bg) p-0 text-(--slackwater-text) backdrop:bg-black/50"
       >
         {open && (
           <div className="flex max-h-[85vh] flex-col">
-            <div className="flex items-center justify-between border-b border-(--neaps-border) p-3">
+            <div className="flex items-center justify-between border-b border-(--slackwater-border) p-3">
               <button
                 type="button"
                 onClick={() => dialog.current?.close()}
                 aria-label="Close"
-                className="grid size-11 place-items-center rounded-md text-(--neaps-text-muted) hover:text-(--neaps-text)"
+                className="grid size-11 place-items-center rounded-md text-(--slackwater-text-muted) hover:text-(--slackwater-text)"
               >
                 ✕
               </button>
@@ -96,7 +96,7 @@ export function StationBrowser({ stationId, onSelect }: StationBrowserProps) {
                 type="button"
                 onClick={() => setView(view === "map" ? "list" : "map")}
                 aria-label={view === "map" ? "Show list" : "Show map"}
-                className="grid size-11 place-items-center rounded-md text-(--neaps-text-muted) hover:text-(--neaps-text) lg:invisible"
+                className="grid size-11 place-items-center rounded-md text-(--slackwater-text-muted) hover:text-(--slackwater-text) lg:invisible"
               >
                 {view === "map" ? (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -127,7 +127,7 @@ export function StationBrowser({ stationId, onSelect }: StationBrowserProps) {
                 <button
                   type="button"
                   onClick={() => select({ id: VESSEL_STATION_ID } as StationSummary)}
-                  className="rounded-md border border-(--neaps-border) px-3 py-2 text-left text-sm hover:bg-(--neaps-bg-subtle)"
+                  className="rounded-md border border-(--slackwater-border) px-3 py-2 text-left text-sm hover:bg-(--slackwater-bg-subtle)"
                 >
                   📍 Vessel position
                 </button>
@@ -135,9 +135,9 @@ export function StationBrowser({ stationId, onSelect }: StationBrowserProps) {
               </div>
 
               {(desktop || view === "map") && current && (
-                // Mobile needs a definite height (h-[60vh]) so neaps's height:100%
+                // Mobile needs a definite height (h-[60vh]) so slackwater's height:100%
                 // map resolves; desktop gets its height from the flex-row stretch.
-                <div className="h-[60vh] overflow-hidden rounded-md border border-(--neaps-border) lg:h-auto lg:min-h-100 lg:flex-1">
+                <div className="h-[60vh] overflow-hidden rounded-md border border-(--slackwater-border) lg:h-auto lg:min-h-100 lg:flex-1">
                   <StationsMap
                     mapStyle={MAP_STYLE}
                     initialViewState={{

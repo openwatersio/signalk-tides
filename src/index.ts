@@ -16,8 +16,8 @@
 
 import { Context, Delta, Path, Plugin, Position, ServerAPI, Timestamp } from "@signalk/server-api";
 import { RequestHandler } from "express";
-import { createRoutes } from "@neaps/api";
-import { findStation, nearestStation, stationsNear } from "neaps";
+import { createRoutes } from "@slackwater/api";
+import { findStation, nearestStation, stationsNear } from "slackwater";
 import { tideStateAt, timeToNextExtreme } from "./calculations.js";
 import FileCache from "./cache.js";
 import { withVesselPosition } from "./middleware.js";
@@ -30,7 +30,7 @@ interface Config {
 }
 
 // Recompute and republish on a fixed interval. Predictions are computed locally
-// by neaps, so this is cheap and needs no configuration.
+// by slackwater, so this is cheap and needs no configuration.
 const UPDATE_INTERVAL = 60 * 1000; // 1 minute
 const API_PATH = "/signalk/v2/api/tides";
 
@@ -54,7 +54,7 @@ export default function (app: ServerAPI): Plugin {
     id: "tides",
     name: "Tides",
     description:
-      "Offline tidal predictions for the vessel's position, powered by Neaps.",
+      "Offline tidal predictions for the vessel's position, powered by Slackwater.",
     schema: () => ({
       title: "Tides",
       type: "object",
@@ -124,12 +124,12 @@ export default function (app: ServerAPI): Plugin {
     let lastPredictor: Predictor | null = null;
     const cache = new FileCache(app.getDataDirPath());
 
-    // Mount the Neaps API, with vessel/default resolved to the configured
+    // Mount the Slackwater API, with vessel/default resolved to the configured
     // default station (or the nearest one).
     activeRouter = withVesselPosition(
-      // @neaps/api bundles its own Express declarations, so its Router is
+      // @slackwater/api bundles its own Express declarations, so its Router is
       // callable at runtime but not structurally compatible with ours.
-      createRoutes({ prefix: API_PATH }) as unknown as RequestHandler,
+      createRoutes() as unknown as RequestHandler,
       () => lastPosition,
       () => config.defaultStation ?? null,
     );
