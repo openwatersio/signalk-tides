@@ -1,4 +1,4 @@
-import type { Extreme } from "@neaps/tide-predictor";
+import type { Extreme } from "@slackwater/engine";
 
 export type TideState = "rising" | "falling";
 

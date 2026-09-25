@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { getDefaultUnits } from '@neaps/react';
+import { getDefaultUnits } from '@slackwater/react';
 import { useUnitPreferences } from './useUnitPreferences';
 
 function mockFetch(response: Partial<Response> | (() => Promise<never>)) {

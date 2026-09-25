@@ -1,6 +1,6 @@
 # signalk-tides
 
-A SignalK plugin that provides offline tidal predictions for the vessel's position, powered by [Neaps](https://github.com/neaps/neaps).
+A SignalK plugin that provides offline tidal predictions for the vessel's position, powered by [Slackwater](https://github.com/openwatersio/slackwater).
 
 Since 2.0, predictions are computed locally from harmonic constituents — no network access or API keys required.
 
@@ -26,7 +26,7 @@ It publishes the following [tide data](https://signalk.org/specification/1.7.0/d
 
 ### Tides API
 
-The plugin mounts the [Neaps API](https://github.com/neaps/neaps) at `/signalk/v2/api/tides`, which serves station search, extremes, and timeline predictions. The synthetic station `vessel/default` resolves to the configured default station, or the nearest station to the vessel when none is set:
+The plugin mounts the [Slackwater API](https://github.com/openwatersio/slackwater) at `/signalk/v2/api/tides`, which serves station search, extremes, and timeline predictions. The synthetic station `vessel/default` resolves to the configured default station, or the nearest station to the vessel when none is set:
 
 ```
 $ curl http://localhost:3000/signalk/v2/api/tides/stations/vessel/default/extremes
