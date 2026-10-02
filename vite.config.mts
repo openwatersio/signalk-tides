@@ -21,6 +21,13 @@ export default defineConfig({
   publicDir: "app/public",
   build: {
     outDir: "public",
+    rolldownOptions: {
+      // widget.html is the chart plotter widget (see src/plotter-extension.ts)
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        widget: fileURLToPath(new URL('./widget.html', import.meta.url)),
+      },
+    },
   },
   resolve: {
     dedupe: ['react', 'react-dom']
