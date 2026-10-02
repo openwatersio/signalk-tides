@@ -156,4 +156,57 @@ describe('plugin', () => {
       expect(publishedStationName(app)).toBe(station.name);
     });
   });
+
+  describe('plotter extension', () => {
+    type ProviderMethods = {
+      listResources: () => Promise<Record<string, unknown>>;
+      getResource: (id: string) => Promise<unknown>;
+    };
+
+    function plotterExtensionProvider(app: ServerAPI): ProviderMethods {
+      const registration = vi
+        .mocked(app.registerResourceProvider)
+        .mock.calls.find(([provider]) => provider.type === 'plotterExtensions');
+      expect(registration, 'plotterExtensions provider registered').toBeDefined();
+      return registration![0].methods as unknown as ProviderMethods;
+    }
+
+    it('offers the tide widget, whose tap opens the Tides app in a panel', async () => {
+      const { app } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      const manifests = await plotterExtensionProvider(app).listResources();
+      const manifest = manifests['signalk-tides'] as {
+        apiVersion: string;
+        requires: string[];
+        widgets: { id: string; url: string; size: string }[];
+        panels: { id: string; url: string }[];
+      };
+      expect(manifest.apiVersion).toBe('1');
+      expect(manifest.requires).toEqual(['widgets']);
+      expect(manifest.widgets).toEqual([
+        expect.objectContaining({
+          id: 'tides',
+          url: '/signalk-tides/widget.html',
+          size: '2x1',
+        }),
+      ]);
+      expect(manifest.panels).toEqual([
+        expect.objectContaining({ id: 'tides', url: '/signalk-tides/' }),
+      ]);
+    });
+
+    it('returns the manifest by id and rejects any other id', async () => {
+      const { app } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      const provider = plotterExtensionProvider(app);
+
+      expect(await provider.getResource('signalk-tides')).toEqual(
+        (await provider.listResources())['signalk-tides'],
+      );
+      await expect(provider.getResource('other')).rejects.toThrow();
+    });
+  });
 });

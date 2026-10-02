@@ -12,6 +12,11 @@ export default defineConfig({
     },
     dedupe: ["react", "react-dom"],
   },
+  optimizeDeps: {
+    // Pre-bundling separates MapLibre from the worker it loads relative to itself,
+    // so the map would request a worker that isn't there and never draw a tile.
+    exclude: ["maplibre-gl"],
+  },
   test: {
     globals: true,
     browser: {
