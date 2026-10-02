@@ -133,7 +133,9 @@ export default function (app: ServerAPI): Plugin {
     activeRouter = withVesselPosition(
       // @neaps/api bundles its own Express declarations, so its Router is
       // callable at runtime but not structurally compatible with ours.
-      createRoutes({ prefix: API_PATH }) as unknown as RequestHandler,
+      // The OpenAPI server URL comes from req.baseUrl, set by the
+      // app.use(API_PATH, ...) mount above.
+      createRoutes() as unknown as RequestHandler,
       () => lastPosition,
       () => config.defaultStation ?? null,
     );
