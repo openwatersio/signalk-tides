@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Plugin, Position, ServerAPI } from "@signalk/server-api";
-import { nearestStation, stationsNear } from "neaps";
+import { nearestStation, stationsNear } from "slackwater";
 import createPlugin from '../src/index.js';
 
 const SF: Position = { latitude: 37.7749, longitude: -122.4194 };

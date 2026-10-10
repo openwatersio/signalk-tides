@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tideStateAt, timeToNextExtreme } from "../src/calculations.js";
-import type { Extreme } from "@neaps/tide-predictor";
+import type { Extreme } from "@slackwater/engine";
 
 const extreme = (time: string, level: number, high: boolean): Extreme => ({
   time: new Date(time),

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { NeapsProvider, TideConditions } from '@neaps/react'
+import { SlackwaterProvider, TideConditions } from '@slackwater/react'
 import { connectExtension, type ExtensionClient } from 'signalk-plotterext-bus/extension'
 import { useUnitPreferences } from '../hooks/useUnitPreferences'
 
@@ -108,7 +108,7 @@ export function TidesWidget() {
   );
 
   return (
-    <NeapsProvider baseUrl={API_BASE_URL} units={units}>
+    <SlackwaterProvider baseUrl={API_BASE_URL} units={units}>
       {host?.hasCapability("ui") && host.hasCapability("panels.iframe") ? (
         <button
           type="button"
@@ -128,6 +128,6 @@ export function TidesWidget() {
       ) : (
         conditions
       )}
-    </NeapsProvider>
+    </SlackwaterProvider>
   );
 }

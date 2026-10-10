@@ -8,7 +8,7 @@ const readStation = () =>
   new URLSearchParams(window.location.search).get("station") || VESSEL_STATION_ID;
 
 // Tracks the station being viewed in the `?station=` query param so the view is
-// shareable and back/forward navigable. neaps owns the URL hash (TideStation's
+// shareable and back/forward navigable. slackwater owns the URL hash (TideStation's
 // tabs), so keeping station in the query string sidesteps that namespace.
 export function useStationId(): [string, (id: string) => void] {
   const [id, setId] = useState(readStation);
@@ -21,7 +21,7 @@ export function useStationId(): [string, (id: string) => void] {
 
   const select = useCallback((raw: string) => {
     const next = raw.trim() || VESSEL_STATION_ID; // never write a blank id
-    const url = new URL(window.location.href); // preserves neaps's #tab hash
+    const url = new URL(window.location.href); // preserves slackwater's #tab hash
     if (next === VESSEL_STATION_ID) url.searchParams.delete("station");
     else url.searchParams.set("station", next);
     // pushState (not replace) so the back button returns to the prior station.

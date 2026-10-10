@@ -46,7 +46,7 @@ describe('useStationId', () => {
     expect(window.location.search).toBe('');
   });
 
-  it('preserves neaps’s hash when writing the station', () => {
+  it('preserves slackwater’s hash when writing the station', () => {
     window.history.replaceState(null, '', '#graph');
     const { result } = renderHook(() => useStationId());
     act(() => result.current[1]('noaa/9447130'));

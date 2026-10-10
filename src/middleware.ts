@@ -2,7 +2,7 @@
  * Middleware for handling vessel position queries and redirects
  */
 import { RequestHandler } from "express";
-import { findStation, nearestStation } from "neaps";
+import { findStation, nearestStation } from "slackwater";
 import type { Position } from "@signalk/server-api";
 
 /**
@@ -70,7 +70,7 @@ export function withVesselPosition(
     }
 
     // Bare location-based queries: redirect to the configured station when set,
-    // otherwise inject the vessel position so neaps uses the nearest station.
+    // otherwise inject the vessel position so slackwater uses the nearest station.
     const isLocationQueryPath =
       req.path === "/extremes" || req.path === "/timeline";
     if (isLocationQueryPath && !req.query.latitude && !req.query.longitude) {
