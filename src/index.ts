@@ -21,6 +21,10 @@ import { findStation, nearestStation, stationsNear } from "slackwater";
 import { tideStateAt, timeToNextExtreme } from "./calculations.js";
 import FileCache from "./cache.js";
 import { withVesselPosition } from "./middleware.js";
+import {
+  PLOTTER_EXTENSION_ID,
+  plotterExtensionManifest,
+} from "./plotter-extension.js";
 
 type Predictor = ReturnType<typeof findStation>;
 type Forecast = ReturnType<Predictor["getExtremesPrediction"]>;
@@ -129,6 +133,8 @@ export default function (app: ServerAPI): Plugin {
     activeRouter = withVesselPosition(
       // @slackwater/api bundles its own Express declarations, so its Router is
       // callable at runtime but not structurally compatible with ours.
+      // The OpenAPI server URL comes from req.baseUrl, set by the
+      // app.use(API_PATH, ...) mount above.
       createRoutes() as unknown as RequestHandler,
       () => lastPosition,
       () => config.defaultStation ?? null,
@@ -153,6 +159,28 @@ export default function (app: ServerAPI): Plugin {
         },
         deleteResource(): never {
           throw new Error("Not implemented");
+        },
+      },
+    });
+
+    // Offer the tide widget to chart plotters (src/plotter-extension.ts)
+    app.registerResourceProvider({
+      type: "plotterExtensions",
+      methods: {
+        async listResources() {
+          return { [PLOTTER_EXTENSION_ID]: plotterExtensionManifest };
+        },
+        async getResource(id: string) {
+          if (id !== PLOTTER_EXTENSION_ID) {
+            throw new Error(`No such plotterExtensions resource: ${id}`);
+          }
+          return plotterExtensionManifest;
+        },
+        setResource(): never {
+          throw new Error("Read-only resource");
+        },
+        deleteResource(): never {
+          throw new Error("Read-only resource");
         },
       },
     });

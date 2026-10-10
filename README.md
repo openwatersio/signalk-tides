@@ -59,6 +59,12 @@ $ curl http://localhost:3000/signalk/v2/api/resources/tides
 }
 ```
 
+### Chart plotter widget
+
+The plugin offers a tide widget to chart plotters that support Signal K [Plotter Extensions](https://github.com/SignalK/freeboard-sk/blob/master/docs/api/plotter-extensions-api.md), such as [Freeboard-SK](https://github.com/SignalK/freeboard-sk). It shows the tide at the vessel's position: the level now with its trend, and the next high or low water, on the predicted curve. Tapping it opens the full Tides app in a panel beside the chart.
+
+In Freeboard-SK, press and hold an empty spot in a corner of the chart (or right-click it and choose *Add widget here*) and pick *Tides*.
+
 ## License
 
 This plugin is a fork of the [signalk-tides-api](https://github.com/joabakk/signalk-tides-api) plugin (which is no longer working) and is licensed under the [Apache License 2.0](LICENSE). Kudos to @joabakk and @sbender9 for the original work.
