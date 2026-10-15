@@ -62,7 +62,7 @@
     "maplibre-gl": "^6.9.0",
     "oxlint": "^1.74.0",
     "pkg-pr-new": "^0.0.88",
-    "playwright": "^1.58.2",
+    "playwright": "^1.64.0",
     "react-map-gl": "^8.1.0",
     "signalk-server": "^2.13.5",
     "supertest": "^7.3.1",
