@@ -6,7 +6,7 @@ on:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -24,7 +24,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     env:
       CI: true
     steps:
@@ -50,7 +50,7 @@ jobs:
 
   publish:
     needs: [lint, test]
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     permissions:
       id-token: write
       pull-requests: write
