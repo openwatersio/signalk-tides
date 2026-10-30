@@ -26,7 +26,7 @@ It publishes the following [tide data](https://signalk.org/specification/1.7.0/d
 
 ### Tides API
 
-The plugin mounts the [Slackwater API](https://openwaters.io/api/tides/) at `/signalk/v2/api/tides`, which serves station search, extremes, and timeline predictions. The synthetic station `vessel/default` resolves to the configured default station, or the nearest station to the vessel when none is set:
+The plugin mounts the [Slackwater API](https://openwaters.io/api/tides/) at `/signalk/v2/api/tides`, which serves station search, extremes, and timeline predictions. The synthetic station `vessel/default` resolves to the configured default station, or the nearest station with tide predictions when none is set or the configured one has no predictions:
 
 ```
 $ curl http://localhost:3000/signalk/v2/api/tides/stations/vessel/default/extremes

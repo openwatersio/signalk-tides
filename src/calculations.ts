@@ -1,6 +1,13 @@
-import type { Extreme } from "@slackwater/engine";
+import type { Extreme, Station } from "@slackwater/engine";
 
 export type TideState = "rising" | "falling";
+
+// CHS stations carry identity only, and predicting from one gives a flat zero tide.
+export function hasTideModel(
+  station: Pick<Station, "harmonic_constituents" | "offsets">,
+): boolean {
+  return station.harmonic_constituents.length > 0 || station.offsets !== undefined;
+}
 
 /**
  * Trend of the tide at `time`: "rising" if the next extreme is a High,

@@ -18,7 +18,7 @@ import { Context, Delta, Path, Plugin, Position, ServerAPI, Timestamp } from "@s
 import { RequestHandler } from "express";
 import { createRoutes } from "@slackwater/api";
 import { findStation, nearestStation, stationsNear } from "slackwater";
-import { tideStateAt, timeToNextExtreme } from "./calculations.js";
+import { hasTideModel, tideStateAt, timeToNextExtreme } from "./calculations.js";
 import FileCache from "./cache.js";
 import { withVesselPosition } from "./middleware.js";
 import {
@@ -26,7 +26,7 @@ import {
   plotterExtensionManifest,
 } from "./plotter-extension.js";
 
-type Predictor = ReturnType<typeof findStation>;
+type Predictor = Awaited<ReturnType<typeof findStation>>;
 type Forecast = ReturnType<Predictor["getExtremesPrediction"]>;
 
 interface Config {
@@ -59,7 +59,8 @@ export default function (app: ServerAPI): Plugin {
     name: "Tides",
     description:
       "Offline tidal predictions for the vessel's position, powered by Slackwater.",
-    schema: () => ({
+    // signalk-server awaits this, but a rejection would fail its whole plugin list
+    schema: async () => ({
       title: "Tides",
       type: "object",
       properties: {
@@ -69,7 +70,7 @@ export default function (app: ServerAPI): Plugin {
           description:
             "Use the closest station to the vessel's current position, or pick a default nearby station.",
           default: "auto",
-          oneOf: defaultStationOptions(),
+          oneOf: await defaultStationOptions(),
         },
       },
     }),
@@ -81,12 +82,23 @@ export default function (app: ServerAPI): Plugin {
     },
   };
 
-  function defaultStationOptions(): { const: string; title: string }[] {
+  async function defaultStationOptions(): Promise<
+    { const: string; title: string }[]
+  > {
     const options = [{ const: "auto", title: "Closest station" }];
 
     if (lastPosition) {
-      for (const station of stationsNear({ ...lastPosition, maxResults: 10 })) {
-        options.push({ const: station.id, title: stationTitle(station) });
+      try {
+        const nearby = await stationsNear({
+          ...lastPosition,
+          maxResults: 10,
+          filter: hasTideModel,
+        });
+        for (const station of nearby) {
+          options.push({ const: station.id, title: stationTitle(station) });
+        }
+      } catch (e: unknown) {
+        app.error(`Could not list nearby tide stations: ${errorMessage(e)}`);
       }
     }
 
@@ -97,7 +109,7 @@ export default function (app: ServerAPI): Plugin {
     if (saved && saved !== "auto" && !options.some((o) => o.const === saved)) {
       let title = saved;
       try {
-        title = stationTitle(findStation(saved));
+        title = stationTitle(await findStation(saved));
       } catch {
         // Unknown id: keep the raw value as the label
       }
@@ -118,7 +130,18 @@ export default function (app: ServerAPI): Plugin {
     }
   }
 
-  async function start(options?: object) {
+  // Not async: signalk-server only rolls back a start() that throws synchronously,
+  // and that rollback does not call stop().
+  function start(options?: object) {
+    try {
+      startPublishing(options);
+    } catch (e: unknown) {
+      plugin.stop();
+      throw e;
+    }
+  }
+
+  function startPublishing(options?: object) {
     app.debug("Starting tides");
     config = (options ?? {}) as Config;
 
@@ -126,6 +149,11 @@ export default function (app: ServerAPI): Plugin {
     // extremes and the current height are always read from the same station.
     let lastForecast: Forecast | null = null;
     let lastPredictor: Predictor | null = null;
+    let latestUpdate = 0;
+    let stopped = false;
+    unsubscribes.push(() => {
+      stopped = true;
+    });
     const cache = new FileCache(app.getDataDirPath());
 
     // Mount the Slackwater API, with vessel/default resolved to the configured
@@ -145,7 +173,7 @@ export default function (app: ServerAPI): Plugin {
       type: "tides",
       methods: {
         async listResources() {
-          const predictor = resolvePredictor();
+          const predictor = await resolvePredictor();
           if (!predictor) {
             throw new Error("No position or default station available");
           }
@@ -203,24 +231,36 @@ export default function (app: ServerAPI): Plugin {
       updatePosition,
     );
 
-    function resolvePredictor(): Predictor | null {
+    async function resolvePredictor(): Promise<Predictor | null> {
       if (config.defaultStation && config.defaultStation !== "auto") {
         try {
-          return findStation(config.defaultStation);
-        } catch {
-          app.error(
-            `Configured tide station not found: ${config.defaultStation}`,
+          const station = await findStation(config.defaultStation);
+          if (hasTideModel(station)) return station;
+          throw new Error("Station has no tide predictions");
+        } catch (e: unknown) {
+          reportLookupFailure(
+            `Could not load tide station ${config.defaultStation}: ${errorMessage(e)}`,
           );
         }
       }
       if (lastPosition) {
         try {
-          return nearestStation(lastPosition);
-        } catch {
-          app.error("No tide station found near vessel position");
+          return await nearestStation({
+            ...lastPosition,
+            filter: hasTideModel,
+          });
+        } catch (e: unknown) {
+          reportLookupFailure(
+            `Could not find a tide station near vessel position: ${errorMessage(e)}`,
+          );
         }
       }
       return null;
+    }
+
+    function reportLookupFailure(message: string) {
+      app.error(message);
+      app.setPluginError(message);
     }
 
     function forecastFor(predictor: Predictor): Forecast {
@@ -231,36 +271,51 @@ export default function (app: ServerAPI): Plugin {
       });
     }
 
+    // Runs from a timer and a delta callback, which both drop its promise, so
+    // it must never reject.
     async function updatePosition() {
-      const newPosition = app.getSelfPath("navigation.position.value");
+      try {
+        const newPosition = app.getSelfPath("navigation.position.value");
 
-      // New position received, save it to the cache
-      if (newPosition) {
-        lastPosition = newPosition as Position | null;
-        await cache.set("position", lastPosition);
-      }
+        // New position received, save it to the cache
+        if (newPosition) {
+          lastPosition = newPosition as Position | null;
+          await cache.set("position", lastPosition);
+        }
 
-      // No last known position, try to load from cache.
-      if (!lastPosition) {
-        lastPosition = (await cache.get("position")) as Position;
+        // No last known position, try to load from cache.
+        if (!lastPosition) {
+          const cached = (await cache.get("position")) as Position | undefined;
+          // A delta may have set a newer position during the read
+          lastPosition ??= cached ?? null;
+        }
+      } catch (e: unknown) {
+        app.error(`Could not update cached position: ${errorMessage(e)}`);
       }
 
       // A configured default station predicts without a position
-      updateForecast();
+      await updateForecast();
     }
 
-    function updateForecast() {
-      const predictor = resolvePredictor();
-      if (!predictor) {
-        app.debug(
-          "No position or default station available, cannot compute tide data",
-        );
-        lastForecast = null;
-        lastPredictor = null;
-        return;
-      }
+    async function updateForecast() {
+      const update = ++latestUpdate;
 
       try {
+        const predictor = await resolvePredictor();
+
+        // The first lookup waits for the database, so a newer update or stop()
+        // can overtake this one.
+        if (stopped || update !== latestUpdate) return;
+
+        if (!predictor) {
+          app.debug(
+            "No position or default station available, cannot compute tide data",
+          );
+          lastForecast = null;
+          lastPredictor = null;
+          return;
+        }
+
         lastForecast = forecastFor(predictor);
         lastPredictor = predictor;
         app.setPluginStatus("Updated tide forecast");
@@ -368,6 +423,10 @@ export default function (app: ServerAPI): Plugin {
   }
 
   return plugin;
+}
+
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }
 
 function stationTitle(station: Predictor): string {

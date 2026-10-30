@@ -3,23 +3,22 @@ import express from 'express';
 import request from 'supertest';
 import type { Request, Response, Router } from 'express';
 import type { Position } from '@signalk/server-api';
+import { hasTideModel } from '../src/calculations.js';
 import { withVesselPosition } from '../src/middleware.js';
 
-// Mock Slackwater's station lookups — the middleware only reads `.id` off the result.
+// Mock Slackwater's station lookups — the middleware only reads `.id` and the tide model fields.
 vi.mock('slackwater', () => ({ nearestStation: vi.fn(), findStation: vi.fn() }));
 const { nearestStation, findStation } = await import('slackwater');
 
 function mockNearest(id: string | null) {
-  vi.mocked(nearestStation).mockReturnValue((id ? { id } : null) as never);
+  vi.mocked(nearestStation).mockResolvedValue((id ? { id } : null) as never);
 }
 
 function mockFind(id: string | null) {
   if (id) {
-    vi.mocked(findStation).mockReturnValue({ id } as never);
+    vi.mocked(findStation).mockResolvedValue({ id, harmonic_constituents: [{}] } as never);
   } else {
-    vi.mocked(findStation).mockImplementation(() => {
-      throw new Error(`Station not found`);
-    });
+    vi.mocked(findStation).mockRejectedValue(new Error(`Station not found`));
   }
 }
 
@@ -58,6 +57,7 @@ describe('withVesselPosition middleware', () => {
       expect(nearestStation).toHaveBeenCalledWith({
         latitude: 37.7749,
         longitude: -122.4194,
+        filter: hasTideModel,
       });
       expect(response.headers.location).toBe('/signalk/v2/api/tides/stations/noaa/9414290');
     });
@@ -109,10 +109,8 @@ describe('withVesselPosition middleware', () => {
       expect(response.body).toEqual({ message: 'No nearby stations found' });
     });
 
-    it('returns 500 when nearestStation throws', async () => {
-      vi.mocked(nearestStation).mockImplementation(() => {
-        throw new Error('boom');
-      });
+    it('returns 500 when nearestStation rejects', async () => {
+      vi.mocked(nearestStation).mockRejectedValue(new Error('boom'));
       const response = await request(buildApp(atSF))
         .get('/signalk/v2/api/tides/stations/vessel/default')
         .expect(500);
@@ -177,6 +175,16 @@ describe('withVesselPosition middleware', () => {
       mockFind(null);
       mockNearest('noaa/9414290');
       const response = await request(buildApp(atSF, () => 'stale/id'))
+        .get('/signalk/v2/api/tides/stations/vessel/default')
+        .expect(303);
+
+      expect(response.headers.location).toBe('/signalk/v2/api/tides/stations/noaa/9414290');
+    });
+
+    it('falls back to the nearest station when the configured station has no tide model', async () => {
+      vi.mocked(findStation).mockResolvedValue({ id: 'chs-halifax', harmonic_constituents: [] } as never);
+      mockNearest('noaa/9414290');
+      const response = await request(buildApp(atSF, () => 'chs-halifax'))
         .get('/signalk/v2/api/tides/stations/vessel/default')
         .expect(303);
 
@@ -293,6 +301,15 @@ describe('withVesselPosition middleware', () => {
       expect(response.body.query.longitude).toBe('-122.4194');
     });
 
+    it('injects position for /extremes when the configured station has no tide model', async () => {
+      vi.mocked(findStation).mockResolvedValue({ id: 'chs-halifax', harmonic_constituents: [] } as never);
+      const response = await request(buildApp(atSF, () => 'chs-halifax'))
+        .get('/signalk/v2/api/tides/extremes')
+        .expect(200);
+
+      expect(response.body.query.latitude).toBe('37.7749');
+    });
+
     it('does not redirect /extremes when explicit coordinates are given', async () => {
       mockFind('noaa/9410230');
       const response = await request(buildApp(atSF, () => 'noaa/9410230'))
@@ -302,6 +319,32 @@ describe('withVesselPosition middleware', () => {
       expect(findStation).not.toHaveBeenCalled();
       expect(response.body.query.latitude).toBe('40.7128');
       expect(response.body.query.longitude).toBe('-74.0060');
+    });
+  });
+
+  describe('failures', () => {
+    it('answers when both lookups reject', async () => {
+      mockFind(null);
+      vi.mocked(nearestStation).mockRejectedValue(new Error('database failed to load'));
+      const response = await request(buildApp(atSF, () => 'noaa/9410230'))
+        .get('/signalk/v2/api/tides/stations/vessel/default')
+        .expect(500);
+
+      expect(response.body).toEqual({ message: 'Failed to find nearest station' });
+    });
+
+    // Called directly: Express 5 would forward a rejection, but signalk-server runs Express 4
+    it('passes an unexpected failure to next', async () => {
+      const error = new Error('position unavailable');
+      const handler = withVesselPosition(mockRouter, () => {
+        throw error;
+      });
+      const next = vi.fn();
+
+      const req = { path: '/stations/vessel/default', url: '/stations/vessel/default', query: {} };
+      await handler(req as never, {} as never, next);
+
+      expect(next).toHaveBeenCalledWith(error);
     });
   });
 
