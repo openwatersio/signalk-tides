@@ -44,6 +44,18 @@ interface Config {
 // by slackwater, so this is cheap and needs no configuration.
 const UPDATE_INTERVAL = 60 * 1000; // 1 minute
 const API_PATH = "/signalk/v2/api/tides";
+const COMPENSATED_DEPTH_PATH =
+  "environment.depth.belowSurfaceTideCompensated" as Path;
+const COMPENSATED_DEPTH_LAT_PATH =
+  "environment.depth.belowSurfaceTideCompensatedLAT" as Path;
+const COMPENSATED_DEPTH_MLLW_PATH =
+  "environment.depth.belowSurfaceTideCompensatedMLLW" as Path;
+
+const COMPENSATED_DEPTH_PATHS = [
+  COMPENSATED_DEPTH_PATH,
+  COMPENSATED_DEPTH_LAT_PATH,
+  COMPENSATED_DEPTH_MLLW_PATH,
+];
 
 const TIDE_PATHS = [
   "environment.tide.stationName",
@@ -285,6 +297,26 @@ export default function (app: ServerAPI): Plugin {
       updatePosition,
     );
 
+    // Compensate every depth reading as it arrives, rather than waiting for the
+    // next tide update. Tide predictions change slowly, so computing the water
+    // level for each depth tick is cheap enough.
+    app.subscriptionmanager.subscribe(
+      {
+        context: ("vessels." + app.selfId) as Context,
+        subscribe: [
+          {
+            path: "environment.depth.belowSurface" as Path,
+            policy: "instant",
+          },
+        ],
+      },
+      unsubscribes,
+      (subscriptionError) => {
+        app.error("Error:" + subscriptionError);
+      },
+      updateDepth,
+    );
+
     async function resolvePredictor(
       report = reportLookupFailure,
     ): Promise<Predictor | null> {
@@ -376,6 +408,72 @@ export default function (app: ServerAPI): Plugin {
       await updateForecast();
     }
 
+    function updateDepth() {
+      const depth = app.getSelfPath("environment.depth.belowSurface.value");
+      if (typeof depth !== "number" || !Number.isFinite(depth)) return;
+
+      publishCompensatedDepth(depth, new Date());
+    }
+
+    function publishCompensatedDepth(depth: number, time: Date) {
+      if (!lastPredictor) return;
+
+      const chartLevel = waterLevelAt(time);
+      const latLevel = waterLevelAt(time, "LAT");
+      const mllwLevel = waterLevelAt(time, "MLLW");
+
+      const compensate = (level: number | null) =>
+        level === null ? null : depth - level;
+
+      const delta: Delta = {
+        context: ("vessels." + app.selfId) as Context,
+        updates: [
+          {
+            timestamp: time.toISOString() as Timestamp,
+            values: [
+              {
+                path: COMPENSATED_DEPTH_PATH,
+                value: compensate(chartLevel),
+              },
+              {
+                path: COMPENSATED_DEPTH_LAT_PATH,
+                value: compensate(latLevel),
+              },
+              {
+                path: COMPENSATED_DEPTH_MLLW_PATH,
+                value: compensate(mllwLevel),
+              },
+            ],
+          },
+        ],
+      };
+
+      if (app.debug.enabled) {
+        app.debug("Sending delta: " + JSON.stringify(delta));
+      }
+      app.handleMessage(plugin.id, delta);
+    }
+
+    function waterLevelAt(time: Date, datum?: string): number | null {
+      if (!lastPredictor) return null;
+
+      // Slackwater can only convert to a datum it knows, and every conversion
+      // goes through MSL. Treat a missing either as "this datum is unavailable".
+      if (
+        datum !== undefined &&
+        (lastPredictor.datums?.[datum] === undefined ||
+          lastPredictor.datums?.MSL === undefined)
+      ) {
+        return null;
+      }
+
+      try {
+        return lastPredictor.getWaterLevelAtTime({ time, datum }).level;
+      } catch {
+        return null;
+      }
+    }
+
     async function updateForecast() {
       const update = ++latestUpdate;
 
@@ -425,7 +523,10 @@ export default function (app: ServerAPI): Plugin {
         updates: [
           {
             timestamp: new Date().toISOString() as Timestamp,
-            values: TIDE_PATHS.map((path) => ({ path, value: null })),
+            values: [...TIDE_PATHS, ...COMPENSATED_DEPTH_PATHS].map((path) => ({
+              path,
+              value: null,
+            })),
           },
         ],
       });
