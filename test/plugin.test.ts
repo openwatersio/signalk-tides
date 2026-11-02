@@ -252,6 +252,16 @@ describe('plugin', () => {
       expect(publishedValue(app, 'environment.tide.stationDistance')).toBeNull();
     });
 
+    it('keeps the error about a saved station when none is in range', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({ defaultStation: HALIFAX_CHS_ID }, () => {});
+      await sendPosition(MID_PACIFIC);
+
+      expect(app.setPluginError).toHaveBeenCalledWith(expect.stringContaining('no tide predictions'));
+      expect(app.setPluginStatus).not.toHaveBeenCalled();
+    });
+
     it('clears the published tide when the vessel leaves range', async () => {
       const { app, sendPosition } = buildApp();
       plugin = createPlugin(app);

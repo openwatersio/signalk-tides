@@ -260,12 +260,14 @@ export default function (app: ServerAPI): Plugin {
     async function resolvePredictor(
       report = reportLookupFailure,
     ): Promise<Predictor | null> {
+      let failed = false;
       if (config.defaultStation && config.defaultStation !== "auto") {
         try {
           const station = await findStation(config.defaultStation);
           if (hasTideModel(station)) return station;
           throw new Error("Station has no tide predictions");
         } catch (e: unknown) {
+          failed = true;
           report(
             `Could not load tide station ${config.defaultStation}: ${errorMessage(e)}`,
           );
@@ -280,7 +282,8 @@ export default function (app: ServerAPI): Plugin {
           });
         } catch (e: unknown) {
           if (isNoStationNearby(e)) {
-            if (!stopped) {
+            // A status would replace the error about the saved station
+            if (!stopped && !failed) {
               app.setPluginStatus(
                 `No tide station within ${MAX_STATION_KM} km of the vessel`,
               );

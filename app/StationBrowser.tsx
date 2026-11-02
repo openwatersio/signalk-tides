@@ -39,7 +39,9 @@ export function StationBrowser({ stationId, onSelect }: StationBrowserProps) {
 
   // The active station's coordinates, used to centre and highlight the map.
   // Resolves `vessel/default` to its real station server-side, same as TideStation.
-  const { data: current } = useStation(stationId);
+  // Fails when no station is in range of the vessel, which is when the map is
+  // most needed, so it then opens on the whole world.
+  const { data: current, error } = useStation(stationId);
 
   const show = () => {
     setDesktop(window.matchMedia("(min-width: 1024px)").matches);
@@ -134,18 +136,22 @@ export function StationBrowser({ stationId, onSelect }: StationBrowserProps) {
                 <NearbyStations stationId={stationId} onStationSelect={select} />
               </div>
 
-              {(desktop || view === "map") && current && (
+              {(desktop || view === "map") && (current || error) && (
                 // Mobile needs a definite height (h-[60vh]) so slackwater's height:100%
                 // map resolves; desktop gets its height from the flex-row stretch.
                 <div className="h-[60vh] overflow-hidden rounded-md border border-(--slackwater-border) lg:h-auto lg:min-h-100 lg:flex-1">
                   <StationsMap
                     mapStyle={MAP_STYLE}
-                    initialViewState={{
-                      longitude: current.longitude,
-                      latitude: current.latitude,
-                      zoom: 10,
-                    }}
-                    focusStation={current.id}
+                    initialViewState={
+                      current
+                        ? {
+                            longitude: current.longitude,
+                            latitude: current.latitude,
+                            zoom: 10,
+                          }
+                        : { longitude: 0, latitude: 20, zoom: 1 }
+                    }
+                    focusStation={current?.id}
                     onStationSelect={select}
                   />
                 </div>
