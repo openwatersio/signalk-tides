@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Context, Delta, Path, Plugin, Position, ServerAPI, Timestamp } from "@signalk/server-api";
+import { Context, Delta, MetaValue, Path, Plugin, Position, ServerAPI, Timestamp } from "@signalk/server-api";
 import { RequestHandler } from "express";
 import { createRoutes } from "@slackwater/api";
 import { findStation, nearestStation, stationsNear } from "slackwater";
@@ -37,6 +37,15 @@ interface Config {
 // by slackwater, so this is cheap and needs no configuration.
 const UPDATE_INTERVAL = 60 * 1000; // 1 minute
 const API_PATH = "/signalk/v2/api/tides";
+
+// Tide heights are water levels, so clients should show them in the user's
+// depth unit. Without a category the server picks one from the unit alone, and
+// for meters that is distance: kilometers or miles, depending on the preset.
+const TIDE_HEIGHT_PATHS = [
+  "environment.tide.heightHigh",
+  "environment.tide.heightNow",
+  "environment.tide.heightLow",
+];
 
 export default function (app: ServerAPI): Plugin {
   let unsubscribes: (() => void)[] = [];
@@ -107,6 +116,24 @@ export default function (app: ServerAPI): Plugin {
     return options;
   }
 
+  // The server keeps display units the user chose for a path, and stores the
+  // suggestion, so later starts leave a path alone while it has display units.
+  async function suggestDepthUnits() {
+    // Signal K server 2.30 added setDefaultMetadata
+    if (typeof app.setDefaultMetadata !== "function") return;
+    for (const path of TIDE_HEIGHT_PATHS) {
+      try {
+        // MetaValue types displayUnits as the server resolves it; a suggestion
+        // needs only the category.
+        await app.setDefaultMetadata(path, {
+          displayUnits: { category: "depth" } as MetaValue["displayUnits"],
+        });
+      } catch (e: unknown) {
+        app.error(`Could not suggest display units for ${path}: ${e}`);
+      }
+    }
+  }
+
   function savedDefaultStation(): string | undefined {
     try {
       const saved = app.readPluginOptions() as {
@@ -121,6 +148,7 @@ export default function (app: ServerAPI): Plugin {
   async function start(options?: object) {
     app.debug("Starting tides");
     config = (options ?? {}) as Config;
+    void suggestDepthUnits();
 
     // Keep the forecast and the predictor that produced it together, so the
     // extremes and the current height are always read from the same station.

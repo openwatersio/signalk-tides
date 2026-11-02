@@ -34,6 +34,7 @@ function buildApp(configuration?: { defaultStation?: string }) {
     readPluginOptions: vi.fn(() => ({ configuration })),
     registerResourceProvider: vi.fn(),
     handleMessage: vi.fn(),
+    setDefaultMetadata: vi.fn(async () => true),
     getSelfPath: vi.fn(),
     subscriptionmanager: {
       subscribe: vi.fn(
@@ -154,6 +155,54 @@ describe('plugin', () => {
       await sendPosition(null as unknown as Position);
 
       expect(publishedStationName(app)).toBe(station.name);
+    });
+  });
+
+  describe('display units', () => {
+    const heightPaths = [
+      'environment.tide.heightHigh',
+      'environment.tide.heightNow',
+      'environment.tide.heightLow',
+    ];
+
+    it('suggests the depth category for the tide heights', async () => {
+      const { app } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      await vi.waitFor(() =>
+        expect(app.setDefaultMetadata).toHaveBeenCalledTimes(heightPaths.length),
+      );
+      for (const path of heightPaths) {
+        expect(app.setDefaultMetadata).toHaveBeenCalledWith(path, {
+          displayUnits: { category: 'depth' },
+        });
+      }
+    });
+
+    it('suggests the remaining paths when one suggestion fails', async () => {
+      const { app } = buildApp();
+      vi.mocked(app.setDefaultMetadata).mockRejectedValueOnce(new Error('disk full'));
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      await vi.waitFor(() =>
+        expect(app.setDefaultMetadata).toHaveBeenCalledTimes(heightPaths.length),
+      );
+      expect(app.error).toHaveBeenCalledWith(
+        expect.stringMatching(/environment\.tide\.heightHigh.*disk full/),
+      );
+    });
+
+    it('publishes tides on a server without setDefaultMetadata', async () => {
+      const { app, sendPosition } = buildApp();
+      delete (app as Partial<ServerAPI>).setDefaultMetadata;
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(SF);
+
+      expect(publishedStationName(app)).toBe(nearestStation(SF).name);
+      expect(app.error).not.toHaveBeenCalled();
     });
   });
 
