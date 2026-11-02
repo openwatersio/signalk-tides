@@ -45,6 +45,18 @@ interface Config {
 const UPDATE_INTERVAL = 60 * 1000; // 1 minute
 const API_PATH = "/signalk/v2/api/tides";
 
+const TIDE_PATHS = [
+  "environment.tide.stationName",
+  "environment.tide.stationDistance",
+  "environment.tide.heightNow",
+  "environment.tide.state",
+  "environment.tide.timeToNextExtreme",
+  "environment.tide.heightHigh",
+  "environment.tide.timeHigh",
+  "environment.tide.heightLow",
+  "environment.tide.timeLow",
+] as Path[];
+
 export default function (app: ServerAPI): Plugin {
   let unsubscribes: (() => void)[] = [];
   let activeRouter: RequestHandler | null = null;
@@ -352,6 +364,7 @@ export default function (app: ServerAPI): Plugin {
           app.debug(
             "No position or default station available, cannot compute tide data",
           );
+          if (lastForecast) clearTides();
           lastForecast = null;
           lastPredictor = null;
           return;
@@ -368,6 +381,20 @@ export default function (app: ServerAPI): Plugin {
         // @ts-expect-error: TODO[TS] this accepts more than just a string: https://github.com/bkeepers/signalk-server/blob/d6845ee1f915e6b729d66d2b08b15dc2e0da8e51/src/interfaces/plugins.ts#L517-L519
         app.error(e);
       }
+    }
+
+    // Signal K keeps a path's last value, so a tide that no longer applies has
+    // to be cleared or it stays on displays, frozen.
+    function clearTides() {
+      app.handleMessage(plugin.id, {
+        context: ("vessels." + app.selfId) as Context,
+        updates: [
+          {
+            timestamp: new Date().toISOString() as Timestamp,
+            values: TIDE_PATHS.map((path) => ({ path, value: null })),
+          },
+        ],
+      });
     }
 
     function updateTides(now = new Date()) {
@@ -396,15 +423,14 @@ export default function (app: ServerAPI): Plugin {
                 path: "environment.tide.stationName" as Path,
                 value: lastForecast.station.name,
               },
-              // Omitted for a configured station, which isn't chosen by distance
-              ...(lastForecast.distance !== undefined
-                ? [
-                    {
-                      path: "environment.tide.stationDistance" as Path,
-                      value: lastForecast.distance * 1000,
-                    },
-                  ]
-                : []),
+              // Null for a configured station, which isn't chosen by distance
+              {
+                path: "environment.tide.stationDistance" as Path,
+                value:
+                  lastForecast.distance === undefined
+                    ? null
+                    : lastForecast.distance * 1000,
+              },
               {
                 path: "environment.tide.heightNow" as Path,
                 value: heightNow,

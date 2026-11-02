@@ -249,7 +249,22 @@ describe('plugin', () => {
       await sendPosition(MID_PACIFIC);
 
       expect(publishedStationName(app)).toBe(station.name);
-      expect(publishedValue(app, 'environment.tide.stationDistance')).toBeUndefined();
+      expect(publishedValue(app, 'environment.tide.stationDistance')).toBeNull();
+    });
+
+    it('clears the published tide when the vessel leaves range', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(SF);
+      await sendPosition(MID_PACIFIC);
+
+      for (const path of ['stationName', 'stationDistance', 'heightNow', 'state', 'timeHigh', 'heightLow']) {
+        expect(publishedValue(app, `environment.tide.${path}`), path).toBeNull();
+      }
+      const sent = vi.mocked(app.handleMessage).mock.calls.length;
+      await sendPosition(MID_PACIFIC);
+      expect(app.handleMessage).toHaveBeenCalledTimes(sent);
     });
 
     it('publishes the configured default station', async () => {
