@@ -47,6 +47,18 @@ describe('withVesselPosition middleware', () => {
 
   const atSF = () => ({ latitude: 37.7749, longitude: -122.4194 } as Position);
 
+  it('reports a failed database load rather than treating the saved id as stale', async () => {
+    mockNearest('noaa/9414290');
+    vi.mocked(findStation).mockRejectedValue(new Error('database failed to load'));
+
+    const response = await request(buildApp(atSF, () => 'noaa/8443970')).get(
+      '/signalk/v2/api/tides/stations/vessel/default',
+    );
+
+    expect(response.status).toBe(500);
+    expect(nearestStation).not.toHaveBeenCalled();
+  });
+
   describe('vessel/default station requests', () => {
     it('returns 303 redirect to nearest station', async () => {
       mockNearest('noaa/9414290');

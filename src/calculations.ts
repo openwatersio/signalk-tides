@@ -3,6 +3,11 @@ import type { Extreme, Station } from "@slackwater/engine";
 export type TideState = "rising" | "falling";
 
 // CHS stations carry identity only, and predicting from one gives a flat zero tide.
+/** Whether a lookup failed on the id, rather than on loading the database. */
+export function isStationNotFound(e: unknown): boolean {
+  return e instanceof Error && e.message.startsWith("Station not found");
+}
+
 export function hasTideModel(
   station: Pick<Station, "harmonic_constituents" | "offsets">,
 ): boolean {

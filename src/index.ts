@@ -18,7 +18,12 @@ import { Context, Delta, Path, Plugin, Position, ServerAPI, Timestamp } from "@s
 import { RequestHandler } from "express";
 import { createRoutes } from "@slackwater/api";
 import { findStation, nearestStation, stationsNear } from "slackwater";
-import { hasTideModel, tideStateAt, timeToNextExtreme } from "./calculations.js";
+import {
+  hasTideModel,
+  isStationNotFound,
+  tideStateAt,
+  timeToNextExtreme,
+} from "./calculations.js";
 import FileCache from "./cache.js";
 import { withVesselPosition } from "./middleware.js";
 import {
@@ -109,9 +114,15 @@ export default function (app: ServerAPI): Plugin {
     if (saved && saved !== "auto" && !options.some((o) => o.const === saved)) {
       let title = saved;
       try {
-        title = stationTitle(await findStation(saved));
-      } catch {
+        const station = await findStation(saved);
+        title = hasTideModel(station)
+          ? stationTitle(station)
+          : `${stationTitle(station)} (no tide predictions)`;
+      } catch (e: unknown) {
         // Unknown id: keep the raw value as the label
+        if (!isStationNotFound(e)) {
+          app.error(`Could not load saved tide station: ${errorMessage(e)}`);
+        }
       }
       options.splice(1, 0, { const: saved, title });
     }
@@ -151,6 +162,7 @@ export default function (app: ServerAPI): Plugin {
     let lastPredictor: Predictor | null = null;
     let latestUpdate = 0;
     let stopped = false;
+    let positionWrite: Promise<unknown> = Promise.resolve();
     unsubscribes.push(() => {
       stopped = true;
     });
@@ -231,14 +243,16 @@ export default function (app: ServerAPI): Plugin {
       updatePosition,
     );
 
-    async function resolvePredictor(): Promise<Predictor | null> {
+    async function resolvePredictor(
+      report = reportLookupFailure,
+    ): Promise<Predictor | null> {
       if (config.defaultStation && config.defaultStation !== "auto") {
         try {
           const station = await findStation(config.defaultStation);
           if (hasTideModel(station)) return station;
           throw new Error("Station has no tide predictions");
         } catch (e: unknown) {
-          reportLookupFailure(
+          report(
             `Could not load tide station ${config.defaultStation}: ${errorMessage(e)}`,
           );
         }
@@ -250,7 +264,7 @@ export default function (app: ServerAPI): Plugin {
             filter: hasTideModel,
           });
         } catch (e: unknown) {
-          reportLookupFailure(
+          report(
             `Could not find a tide station near vessel position: ${errorMessage(e)}`,
           );
         }
@@ -259,6 +273,7 @@ export default function (app: ServerAPI): Plugin {
     }
 
     function reportLookupFailure(message: string) {
+      if (stopped) return;
       app.error(message);
       app.setPluginError(message);
     }
@@ -280,7 +295,12 @@ export default function (app: ServerAPI): Plugin {
         // New position received, save it to the cache
         if (newPosition) {
           lastPosition = newPosition as Position | null;
-          await cache.set("position", lastPosition);
+          // Writes run in turn and each saves the newest position, so an older
+          // one can't land last
+          positionWrite = positionWrite
+            .catch(() => {})
+            .then(() => cache.set("position", lastPosition));
+          await positionWrite;
         }
 
         // No last known position, try to load from cache.
@@ -301,7 +321,11 @@ export default function (app: ServerAPI): Plugin {
       const update = ++latestUpdate;
 
       try {
-        const predictor = await resolvePredictor();
+        let lookupFailed = false;
+        const predictor = await resolvePredictor((message) => {
+          lookupFailed = true;
+          reportLookupFailure(message);
+        });
 
         // The first lookup waits for the database, so a newer update or stop()
         // can overtake this one.
@@ -318,7 +342,8 @@ export default function (app: ServerAPI): Plugin {
 
         lastForecast = forecastFor(predictor);
         lastPredictor = predictor;
-        app.setPluginStatus("Updated tide forecast");
+        // A fallback keeps the lookup's error showing
+        if (!lookupFailed) app.setPluginStatus("Updated tide forecast");
         updateTides();
       } catch (e: unknown) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

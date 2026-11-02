@@ -3,7 +3,7 @@
  */
 import { RequestHandler } from "express";
 import { findStation, nearestStation } from "slackwater";
-import { hasTideModel } from "./calculations.js";
+import { hasTideModel, isStationNotFound } from "./calculations.js";
 import type { Position } from "@signalk/server-api";
 
 /**
@@ -32,8 +32,11 @@ export function withVesselPosition(
         try {
           const station = await findStation(id);
           return hasTideModel(station) ? station : null;
-        } catch {
-          return null; // stale or invalid saved id: fall back to position
+        } catch (e: unknown) {
+          // A stale or invalid saved id falls back to position; a database that
+          // failed to load has to reach next().
+          if (isStationNotFound(e)) return null;
+          throw e;
         }
       };
 

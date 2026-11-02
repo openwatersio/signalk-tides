@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Plugin, Position, ServerAPI } from "@signalk/server-api";
 import { findStation, nearestStation, stationsNear } from "slackwater";
+import FileCache from '../src/cache.js';
 import createPlugin from '../src/index.js';
 
 // Real lookups by default, so a test can make one reject or wait
@@ -170,6 +171,15 @@ describe('plugin', () => {
       expect(options.map((o) => o.const)).not.toContain(HALIFAX_CHS_ID);
     });
 
+    it('labels a saved station with no tide model', async () => {
+      const { app } = buildApp({ defaultStation: HALIFAX_CHS_ID });
+      plugin = createPlugin(app);
+
+      const options = await stationOptions(plugin);
+      expect(options[1].const).toBe(HALIFAX_CHS_ID);
+      expect(options[1].title).toContain('no tide predictions');
+    });
+
     it('keeps a saved station with an unknown id selectable', async () => {
       const { app } = buildApp({ defaultStation: 'stale/id' });
       plugin = createPlugin(app);
@@ -250,6 +260,8 @@ describe('plugin', () => {
 
       expect(publishedStationName(app)).toBe((await nearestStation(SF)).name);
       expect(app.error).toHaveBeenCalledWith(expect.stringContaining('no tide predictions'));
+      expect(app.setPluginError).toHaveBeenCalledWith(expect.stringContaining('no tide predictions'));
+      expect(app.setPluginStatus).not.toHaveBeenCalledWith('Updated tide forecast');
     });
 
     it('does not reject when station lookups reject', async () => {
@@ -275,6 +287,46 @@ describe('plugin', () => {
 
       expect(app.error).toHaveBeenCalledWith(expect.stringContaining('cached position'));
       expect(publishedStationName(app)).toBe((await nearestStation(SF)).name);
+    });
+
+    it('saves the newest position when cache writes overlap', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      let finishFirstWrite!: () => void;
+      const set = vi
+        .spyOn(FileCache.prototype, 'set')
+        .mockImplementationOnce(() => new Promise<void>((resolve) => (finishFirstWrite = resolve)))
+        .mockResolvedValue(undefined);
+      const first = sendPosition({ latitude: 42.35, longitude: -71.05 });
+      await vi.waitFor(() => expect(set).toHaveBeenCalledTimes(1));
+      const second = sendPosition(SF);
+      await new Promise((resolve) => setTimeout(resolve));
+      expect(set).toHaveBeenCalledTimes(1);
+
+      finishFirstWrite();
+      await Promise.all([first, second]);
+      expect(set).toHaveBeenLastCalledWith('position', SF);
+      set.mockRestore();
+    });
+
+    it('reports no failure from a lookup that fails after stop', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      let fail!: (error: Error) => void;
+      vi.mocked(nearestStation).mockImplementationOnce(
+        () => new Promise((_, reject) => (fail = reject)),
+      );
+      const update = sendPosition(SF);
+      await vi.waitFor(() => expect(fail).toBeDefined());
+      plugin.stop();
+      fail(new Error('lookup failed'));
+      await update;
+
+      expect(app.setPluginError).not.toHaveBeenCalled();
     });
 
     it('does not let an older position overwrite a newer one', async () => {
