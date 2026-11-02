@@ -3,7 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import type { Request, Response, Router } from 'express';
 import type { Position } from '@signalk/server-api';
-import { MAX_STATION_KM, hasTideModel } from '../src/calculations.js';
+import { MAX_STATION_KM } from '../src/calculations.js';
 import { withVesselPosition } from '../src/middleware.js';
 
 // Mock Slackwater's station lookups — the middleware only reads `.id` and the tide model fields.
@@ -79,7 +79,6 @@ describe('withVesselPosition middleware', () => {
         latitude: 37.7749,
         longitude: -122.4194,
         maxDistance: MAX_STATION_KM,
-        filter: hasTideModel,
       });
       expect(response.headers.location).toBe('/signalk/v2/api/tides/stations/noaa/9414290');
     });

@@ -11,20 +11,19 @@ import {
 } from "./calculations.js";
 import type { Position } from "@signalk/server-api";
 
-/**
- * Middleware that resolves the vessel/default station alias and bare
- * location-based queries (/extremes, /timeline) against the configured default
- * station, falling back to the station nearest the vessel's position when no
- * default is set.
- */
 const nearestToVessel = ({ latitude, longitude }: Position) =>
   nearestStation({
     latitude,
     longitude,
     maxDistance: MAX_STATION_KM,
-    filter: hasTideModel,
   });
 
+/**
+ * Middleware that resolves the vessel/default station alias and bare
+ * location-based queries (/extremes, /timeline) against the configured default
+ * station, falling back to the station nearest the vessel's position when no
+ * default is set or it can't be used.
+ */
 export function withVesselPosition(
   router: RequestHandler,
   getPosition: () => Position | null,

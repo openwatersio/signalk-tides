@@ -166,8 +166,7 @@ describe('plugin', () => {
       await plugin.start({}, () => {});
       await sendPosition(HALIFAX);
 
-      const unfiltered = await stationsNear({ ...HALIFAX, maxResults: 10 });
-      expect(unfiltered.map((s) => s.id)).toContain(HALIFAX_CHS_ID);
+      expect((await findStation(HALIFAX_CHS_ID)).harmonic_constituents).toHaveLength(0);
 
       const options = await stationOptions(plugin);
       expect(options.length).toBeGreaterThan(1);
@@ -303,15 +302,15 @@ describe('plugin', () => {
     });
 
     it('skips a nearer station with no tide model', async () => {
-      const unfiltered = await nearestStation(HALIFAX);
-      expect(unfiltered.id).toBe(HALIFAX_CHS_ID);
-      expect(unfiltered.harmonic_constituents).toHaveLength(0);
+      expect((await findStation(HALIFAX_CHS_ID)).harmonic_constituents).toHaveLength(0);
 
       const { app, sendPosition } = buildApp();
       plugin = createPlugin(app);
       await plugin.start({}, () => {});
       await sendPosition(HALIFAX);
 
+      expect(publishedStationName(app)).toBe((await nearestStation(HALIFAX)).name);
+      expect(publishedValue(app, 'environment.tide.heightNow')).toEqual(expect.any(Number));
       expect(publishedValue(app, 'environment.tide.heightNow')).not.toBe(0);
     });
 

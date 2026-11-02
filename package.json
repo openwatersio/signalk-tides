@@ -36,13 +36,13 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@signalk/server-api": "^2.35.0",
-    "@slackwater/api": "https://pkg.pr.new/@slackwater/api@0c7a20e",
+    "@slackwater/api": "^1.0.0-beta.4",
     "@slackwater/react": "^1.0.0-beta.2",
     "express": "^5.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.3.1",
     "signalk-plotterext-bus": "^0.24.0",
-    "slackwater": "https://pkg.pr.new/openwatersio/slackwater/slackwater@0c7a20e"
+    "slackwater": "^1.0.0-beta.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
@@ -75,8 +75,7 @@
   "overrides": {
     "vite-plus": {
       "@vitest/browser-playwright": "4.1.11"
-    },
-    "slackwater": "$slackwater"
+    }
   },
   "repository": {
     "type": "git",

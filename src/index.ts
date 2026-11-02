@@ -120,7 +120,6 @@ export default function (app: ServerAPI): Plugin {
         const nearby = await stationsNear({
           ...lastPosition,
           maxResults: 10,
-          filter: hasTideModel,
         });
         for (const station of nearby) {
           options.push({ const: station.id, title: stationTitle(station) });
@@ -307,7 +306,6 @@ export default function (app: ServerAPI): Plugin {
           return await nearestStation({
             ...lastPosition,
             maxDistance: MAX_STATION_KM,
-            filter: hasTideModel,
           });
         } catch (e: unknown) {
           if (isNoStationNearby(e)) {
