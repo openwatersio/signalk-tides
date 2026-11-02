@@ -236,7 +236,8 @@ describe('plugin', () => {
       await plugin.start({}, () => {});
       await sendPosition(MID_PACIFIC);
 
-      expect(app.handleMessage).not.toHaveBeenCalled();
+      expect(publishedStationName(app)).toBeNull();
+      expect(publishedValue(app, 'environment.tide.heightNow')).toBeNull();
       expect(app.setPluginError).not.toHaveBeenCalled();
       expect(app.setPluginStatus).toHaveBeenCalledWith(`No tide station within ${MAX_STATION_KM} km of the vessel`);
     });
@@ -336,7 +337,7 @@ describe('plugin', () => {
 
       expect(app.error).toHaveBeenCalledTimes(2);
       expect(app.setPluginError).toHaveBeenCalledWith(expect.stringContaining('database failed to load'));
-      expect(app.handleMessage).not.toHaveBeenCalled();
+      expect(publishedStationName(app)).toBeNull();
     });
 
     it('still publishes when the position cannot be cached', async () => {

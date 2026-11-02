@@ -176,6 +176,7 @@ export default function (app: ServerAPI): Plugin {
     let lastPredictor: Predictor | null = null;
     let latestUpdate = 0;
     let stopped = false;
+    let tidesCleared = false;
     let positionWrite: Promise<unknown> = Promise.resolve();
     unsubscribes.push(() => {
       stopped = true;
@@ -367,7 +368,10 @@ export default function (app: ServerAPI): Plugin {
           app.debug(
             "No position or default station available, cannot compute tide data",
           );
-          if (lastForecast) clearTides();
+          // Once per loss, and once after a restart, which can't tell what the
+          // run before it published
+          if (!tidesCleared) clearTides();
+          tidesCleared = true;
           lastForecast = null;
           lastPredictor = null;
           return;
@@ -375,6 +379,7 @@ export default function (app: ServerAPI): Plugin {
 
         lastForecast = forecastFor(predictor);
         lastPredictor = predictor;
+        tidesCleared = false;
         // A fallback keeps the lookup's error showing
         if (!lookupFailed) app.setPluginStatus(forecastStatus(lastForecast));
         updateTides();
