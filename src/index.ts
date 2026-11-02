@@ -19,7 +19,9 @@ import { RequestHandler } from "express";
 import { createRoutes } from "@slackwater/api";
 import { findStation, nearestStation, stationsNear } from "slackwater";
 import {
+  MAX_STATION_KM,
   hasTideModel,
+  isNoStationNearby,
   isStationNotFound,
   tideStateAt,
   timeToNextExtreme,
@@ -261,9 +263,18 @@ export default function (app: ServerAPI): Plugin {
         try {
           return await nearestStation({
             ...lastPosition,
+            maxDistance: MAX_STATION_KM,
             filter: hasTideModel,
           });
         } catch (e: unknown) {
+          if (isNoStationNearby(e)) {
+            if (!stopped) {
+              app.setPluginStatus(
+                `No tide station within ${MAX_STATION_KM} km of the vessel`,
+              );
+            }
+            return null;
+          }
           report(
             `Could not find a tide station near vessel position: ${errorMessage(e)}`,
           );
@@ -276,6 +287,12 @@ export default function (app: ServerAPI): Plugin {
       if (stopped) return;
       app.error(message);
       app.setPluginError(message);
+    }
+
+    function forecastStatus({ station, distance }: Forecast) {
+      return distance === undefined
+        ? "Updated tide forecast"
+        : `Updated tide forecast from ${station.name}, ${Math.round(distance)} km away`;
     }
 
     function forecastFor(predictor: Predictor): Forecast {
@@ -343,7 +360,7 @@ export default function (app: ServerAPI): Plugin {
         lastForecast = forecastFor(predictor);
         lastPredictor = predictor;
         // A fallback keeps the lookup's error showing
-        if (!lookupFailed) app.setPluginStatus("Updated tide forecast");
+        if (!lookupFailed) app.setPluginStatus(forecastStatus(lastForecast));
         updateTides();
       } catch (e: unknown) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -379,6 +396,15 @@ export default function (app: ServerAPI): Plugin {
                 path: "environment.tide.stationName" as Path,
                 value: lastForecast.station.name,
               },
+              // Omitted for a configured station, which isn't chosen by distance
+              ...(lastForecast.distance !== undefined
+                ? [
+                    {
+                      path: "environment.tide.stationDistance" as Path,
+                      value: lastForecast.distance * 1000,
+                    },
+                  ]
+                : []),
               {
                 path: "environment.tide.heightNow" as Path,
                 value: heightNow,
@@ -418,6 +444,14 @@ export default function (app: ServerAPI): Plugin {
                 value: {
                   description:
                     "Tide trend at the current position: rising or falling",
+                },
+              },
+              {
+                path: "environment.tide.stationDistance" as Path,
+                value: {
+                  units: "m",
+                  description:
+                    "Distance from the vessel to the station it was given",
                 },
               },
               {

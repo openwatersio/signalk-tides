@@ -2,6 +2,20 @@ import type { Extreme, Station } from "@slackwater/engine";
 
 export type TideState = "rising" | "falling";
 
+/**
+ * How far from the vessel a station may be and still stand in for its tide. Past
+ * this a station gives a plausible tide for other water, so the plugin publishes
+ * none. Half of the CHS positions with no model have a station that predicts
+ * within 28 km, and 184 of 1,057 have none within 100 km. This project's
+ * definition, not a published figure.
+ */
+export const MAX_STATION_KM = 100;
+
+/** Whether a location lookup found nothing in range. */
+export function isNoStationNearby(e: unknown): boolean {
+  return e instanceof Error && e.message.startsWith("No stations found");
+}
+
 /** Whether a lookup failed on the id, rather than on loading the database. */
 export function isStationNotFound(e: unknown): boolean {
   return e instanceof Error && e.message.startsWith("Station not found");

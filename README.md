@@ -21,12 +21,13 @@ It publishes the following [tide data](https://signalk.org/specification/1.7.0/d
 * `environment.tide.timeLow`
 * `environment.tide.heightNow`
 * `environment.tide.stationName`
+* `environment.tide.stationDistance` — metres from the vessel to the station, when it was chosen by position
 * `environment.tide.state` — tide trend, `rising` or `falling`
 * `environment.tide.timeToNextExtreme` — seconds until the next high or low water
 
 ### Tides API
 
-The plugin mounts the [Slackwater API](https://openwaters.io/api/tides/) at `/signalk/v2/api/tides`, which serves station search, extremes, and timeline predictions. The synthetic station `vessel/default` resolves to the configured default station, or the nearest station with tide predictions when none is set or the configured one has no predictions:
+The plugin mounts the [Slackwater API](https://openwaters.io/api/tides/) at `/signalk/v2/api/tides`, which serves station search, extremes, and timeline predictions. The synthetic station `vessel/default` resolves to the configured default station, or the nearest station with tide predictions within 100 km when none is set or the configured one has no predictions. With none in range, the plugin publishes no tide and says so in its status, and the API answers 404:
 
 ```
 $ curl http://localhost:3000/signalk/v2/api/tides/stations/vessel/default/extremes

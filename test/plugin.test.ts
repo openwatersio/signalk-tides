@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Plugin, Position, ServerAPI } from "@signalk/server-api";
 import { findStation, nearestStation, stationsNear } from "slackwater";
 import FileCache from '../src/cache.js';
+import { MAX_STATION_KM } from '../src/calculations.js';
 import createPlugin from '../src/index.js';
 
 // Real lookups by default, so a test can make one reject or wait
@@ -22,6 +23,7 @@ const SF: Position = { latitude: 37.7749, longitude: -122.4194 };
 // The nearest station here is a CHS record with no constituents, which predicts a flat zero tide
 const HALIFAX: Position = { latitude: 44.65, longitude: -63.57 };
 const HALIFAX_CHS_ID = 'chs-halifax';
+const MID_PACIFIC: Position = { latitude: 30, longitude: -150 };
 
 interface StationOption {
   const: string;
@@ -216,6 +218,40 @@ describe('plugin', () => {
       expect(publishedStationName(app)).toBe((await nearestStation(SF)).name);
     });
 
+    it('publishes how far away the nearest station is', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(SF);
+
+      const metres = publishedValue(app, 'environment.tide.stationDistance') as number;
+      expect(metres).toBeGreaterThan(0);
+      expect(metres).toBeLessThan(MAX_STATION_KM * 1000);
+      expect(app.setPluginStatus).toHaveBeenLastCalledWith(expect.stringMatching(/ km away$/));
+    });
+
+    it('publishes no tide when no station is in range', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(MID_PACIFIC);
+
+      expect(app.handleMessage).not.toHaveBeenCalled();
+      expect(app.setPluginError).not.toHaveBeenCalled();
+      expect(app.setPluginStatus).toHaveBeenCalledWith(`No tide station within ${MAX_STATION_KM} km of the vessel`);
+    });
+
+    it('still publishes a configured station out of range, with no distance', async () => {
+      const station = await nearestStation(SF);
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({ defaultStation: station.id }, () => {});
+      await sendPosition(MID_PACIFIC);
+
+      expect(publishedStationName(app)).toBe(station.name);
+      expect(publishedValue(app, 'environment.tide.stationDistance')).toBeUndefined();
+    });
+
     it('publishes the configured default station', async () => {
       // A real station near but not nearest to the SF position
       const station = (await stationsNear({ ...SF, maxResults: 5 })).at(-1)!;
@@ -261,7 +297,7 @@ describe('plugin', () => {
       expect(publishedStationName(app)).toBe((await nearestStation(SF)).name);
       expect(app.error).toHaveBeenCalledWith(expect.stringContaining('no tide predictions'));
       expect(app.setPluginError).toHaveBeenCalledWith(expect.stringContaining('no tide predictions'));
-      expect(app.setPluginStatus).not.toHaveBeenCalledWith('Updated tide forecast');
+      expect(app.setPluginStatus).not.toHaveBeenCalledWith(expect.stringContaining('Updated tide forecast'));
     });
 
     it('does not reject when station lookups reject', async () => {

@@ -3,7 +3,12 @@
  */
 import { RequestHandler } from "express";
 import { findStation, nearestStation } from "slackwater";
-import { hasTideModel, isStationNotFound } from "./calculations.js";
+import {
+  MAX_STATION_KM,
+  hasTideModel,
+  isNoStationNearby,
+  isStationNotFound,
+} from "./calculations.js";
 import type { Position } from "@signalk/server-api";
 
 /**
@@ -12,6 +17,14 @@ import type { Position } from "@signalk/server-api";
  * station, falling back to the station nearest the vessel's position when no
  * default is set.
  */
+const nearestToVessel = ({ latitude, longitude }: Position) =>
+  nearestStation({
+    latitude,
+    longitude,
+    maxDistance: MAX_STATION_KM,
+    filter: hasTideModel,
+  });
+
 export function withVesselPosition(
   router: RequestHandler,
   getPosition: () => Position | null,
@@ -61,19 +74,12 @@ export function withVesselPosition(
         }
 
         try {
-          const nearest = await nearestStation({
-            latitude: pos.latitude,
-            longitude: pos.longitude,
-            filter: hasTideModel,
-          });
-
-          if (!nearest) {
+          return toStation(await nearestToVessel(pos));
+        } catch (e: unknown) {
+          if (isNoStationNearby(e)) {
             res.status(404).json({ message: "No nearby stations found" });
             return;
           }
-
-          return toStation(nearest);
-        } catch {
           res.status(500).json({ message: "Failed to find nearest station" });
           return;
         }
@@ -96,6 +102,15 @@ export function withVesselPosition(
 
         const pos = getPosition();
         if (pos) {
+          // The Slackwater route takes any distance, so check the range here
+          try {
+            await nearestToVessel(pos);
+          } catch (e: unknown) {
+            if (!isNoStationNearby(e)) throw e;
+            res.status(404).json({ message: "No nearby stations found" });
+            return;
+          }
+
           // Express 5 makes `req.query` a read-only getter, so assigning to its
           // properties is silently lost. Shadow it with an own data property,
           // which behaves identically on Express 4 and 5.

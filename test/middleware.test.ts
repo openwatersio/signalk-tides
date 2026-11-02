@@ -3,7 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import type { Request, Response, Router } from 'express';
 import type { Position } from '@signalk/server-api';
-import { hasTideModel } from '../src/calculations.js';
+import { MAX_STATION_KM, hasTideModel } from '../src/calculations.js';
 import { withVesselPosition } from '../src/middleware.js';
 
 // Mock Slackwater's station lookups — the middleware only reads `.id` and the tide model fields.
@@ -47,6 +47,15 @@ describe('withVesselPosition middleware', () => {
 
   const atSF = () => ({ latitude: 37.7749, longitude: -122.4194 } as Position);
 
+  it.each(['/stations/vessel/default', '/extremes'])(
+    'returns 404 for %s when no station is in range',
+    async (path) => {
+      vi.mocked(nearestStation).mockRejectedValue(new Error('No stations found with options: {}'));
+
+      await request(buildApp(atSF)).get(`/signalk/v2/api/tides${path}`).expect(404);
+    },
+  );
+
   it('reports a failed database load rather than treating the saved id as stale', async () => {
     mockNearest('noaa/9414290');
     vi.mocked(findStation).mockRejectedValue(new Error('database failed to load'));
@@ -69,6 +78,7 @@ describe('withVesselPosition middleware', () => {
       expect(nearestStation).toHaveBeenCalledWith({
         latitude: 37.7749,
         longitude: -122.4194,
+        maxDistance: MAX_STATION_KM,
         filter: hasTideModel,
       });
       expect(response.headers.location).toBe('/signalk/v2/api/tides/stations/noaa/9414290');
@@ -110,15 +120,6 @@ describe('withVesselPosition middleware', () => {
 
       expect(nearestStation).not.toHaveBeenCalled();
       expect(response.body).toEqual({ message: 'Vessel position not available' });
-    });
-
-    it('returns 404 when no nearby stations found', async () => {
-      mockNearest(null);
-      const response = await request(buildApp(atSF))
-        .get('/signalk/v2/api/tides/stations/vessel/default')
-        .expect(404);
-
-      expect(response.body).toEqual({ message: 'No nearby stations found' });
     });
 
     it('returns 500 when nearestStation rejects', async () => {
