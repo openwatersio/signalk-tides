@@ -20,6 +20,21 @@ jobs:
           node-version-file: .github/mise.node24.toml # npm >= 11.5.1 for trusted publishing
           registry-url: https://registry.npmjs.org
 
+      # Before anything installs, so a preview build is neither run nor published.
+      # Overrides don't reach people installing the plugin, so these specs are
+      # what they get.
+      - name: Refuse dependencies from outside the registry
+        run: |
+          node -e '
+            const { dependencies = {}, optionalDependencies = {} } = require("./package.json");
+            const outside = Object.entries({ ...dependencies, ...optionalDependencies })
+              .filter(([, spec]) => /[:/]/.test(spec));
+            if (outside.length) {
+              console.error("Not from the registry:", Object.fromEntries(outside));
+              process.exit(1);
+            }
+          '
+
       - name: Install dependencies
         run: npm install
 

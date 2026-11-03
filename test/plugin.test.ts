@@ -1,20 +1,37 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, type Mock } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Plugin, Position, ServerAPI } from "@signalk/server-api";
-import { nearestStation, stationsNear } from "slackwater";
+import { findStation, nearestStation, stationsNear } from "slackwater";
+import FileCache from '../src/cache.js';
+import { MAX_STATION_KM } from '../src/calculations.js';
 import createPlugin from '../src/index.js';
 
+// Real lookups by default, so a test can make one reject or wait
+vi.mock('slackwater', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('slackwater')>();
+  return {
+    ...actual,
+    findStation: vi.fn(actual.findStation),
+    nearestStation: vi.fn(actual.nearestStation),
+    stationsNear: vi.fn(actual.stationsNear),
+  };
+});
+
 const SF: Position = { latitude: 37.7749, longitude: -122.4194 };
+// The nearest station here is a CHS record with no constituents, which predicts a flat zero tide
+const HALIFAX: Position = { latitude: 44.65, longitude: -63.57 };
+const HALIFAX_CHS_ID = 'chs-halifax';
+const MID_PACIFIC: Position = { latitude: 30, longitude: -150 };
 
 interface StationOption {
   const: string;
   title: string;
 }
 
-function stationOptions(plugin: Plugin): StationOption[] {
-  const schema = (plugin.schema as () => never)() as {
+async function stationOptions(plugin: Plugin): Promise<StationOption[]> {
+  const schema = (await (plugin.schema as () => Promise<unknown>)()) as {
     properties: { defaultStation: { oneOf: StationOption[] } };
   };
   return schema.properties.defaultStation.oneOf;
@@ -30,7 +47,7 @@ function buildApp(configuration?: { defaultStation?: string }) {
     setPluginError: vi.fn(),
     selfId: 'urn:mrn:imo:mmsi:000000000',
     use: vi.fn(),
-    getDataDirPath: () => mkdtempSync(join(tmpdir(), 'signalk-tides-test-')),
+    getDataDirPath: vi.fn(() => mkdtempSync(join(tmpdir(), 'signalk-tides-test-'))),
     readPluginOptions: vi.fn(() => ({ configuration })),
     registerResourceProvider: vi.fn(),
     handleMessage: vi.fn(),
@@ -60,11 +77,40 @@ function buildApp(configuration?: { defaultStation?: string }) {
   };
 }
 
-function publishedStationName(app: ServerAPI): unknown {
+// Keeps the next nearestStation call pending until the test releases it
+function holdNextLookup() {
+  type Station = Awaited<ReturnType<typeof nearestStation>>;
+  let release!: (station: Station) => void;
+  const result = new Promise<Station>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    vi.mocked(nearestStation).mockImplementationOnce(() => {
+      resolve();
+      return result;
+    });
+  });
+  return { started, release };
+}
+
+function publishedStationNames(app: ServerAPI): unknown[] {
+  return vi.mocked(app.handleMessage).mock.calls.flatMap(([, delta]) =>
+    (delta.updates ?? [])
+      .flatMap((u) => ("values" in u ? u.values : []))
+      .filter((v) => v.path === "environment.tide.stationName")
+      .map((v) => v.value),
+  );
+}
+
+function publishedValue(app: ServerAPI, path: string): unknown {
   const delta = vi.mocked(app.handleMessage).mock.calls.at(-1)![1];
   return (delta.updates ?? [])
     .flatMap((u) => ("values" in u ? u.values : []))
-    .find((v) => v.path === "environment.tide.stationName")?.value;
+    .find((v) => v.path === path)?.value;
+}
+
+function publishedStationName(app: ServerAPI): unknown {
+  return publishedValue(app, "environment.tide.stationName");
 }
 
 describe('plugin', () => {
@@ -73,14 +119,15 @@ describe('plugin', () => {
   afterEach(() => {
     plugin?.stop?.();
     plugin = undefined;
+    vi.clearAllMocks();
   });
 
   describe('schema', () => {
-    it('offers only "auto" before a position is known', () => {
+    it('offers only "auto" before a position is known', async () => {
       const { app } = buildApp();
       plugin = createPlugin(app);
 
-      expect(stationOptions(plugin)).toEqual([
+      expect(await stationOptions(plugin)).toEqual([
         { const: 'auto', title: 'Closest station' },
       ]);
     });
@@ -91,8 +138,8 @@ describe('plugin', () => {
       await plugin.start({}, () => {});
       await sendPosition(SF);
 
-      const options = stationOptions(plugin);
-      const nearest = nearestStation(SF);
+      const options = await stationOptions(plugin);
+      const nearest = await nearestStation(SF);
 
       expect(options[0].const).toBe('auto');
       expect(options.length).toBeGreaterThan(1);
@@ -102,25 +149,62 @@ describe('plugin', () => {
       expect(nearestOption.title).toMatch(/km$/);
     });
 
-    it('keeps a saved station selectable when it is not nearby', () => {
-      const station = nearestStation({ latitude: 42.35, longitude: -71.05 }); // Boston, far from SF
+    it('keeps a saved station selectable when it is not nearby', async () => {
+      const station = await nearestStation({ latitude: 42.35, longitude: -71.05 }); // Boston, far from SF
       const { app } = buildApp({ defaultStation: station.id });
       plugin = createPlugin(app);
 
-      const options = stationOptions(plugin);
+      const options = await stationOptions(plugin);
       expect(options[0].const).toBe('auto');
       expect(options[1].const).toBe(station.id);
       expect(options[1].title).toContain(station.name);
     });
 
-    it('keeps a saved station with an unknown id selectable', () => {
+    it('omits stations with no tide model', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(HALIFAX);
+
+      expect((await findStation(HALIFAX_CHS_ID)).harmonic_constituents).toHaveLength(0);
+
+      const options = await stationOptions(plugin);
+      expect(options.length).toBeGreaterThan(1);
+      expect(options.map((o) => o.const)).not.toContain(HALIFAX_CHS_ID);
+    });
+
+    it('labels a saved station with no tide model', async () => {
+      const { app } = buildApp({ defaultStation: HALIFAX_CHS_ID });
+      plugin = createPlugin(app);
+
+      const options = await stationOptions(plugin);
+      expect(options[1].const).toBe(HALIFAX_CHS_ID);
+      expect(options[1].title).toContain('no tide predictions');
+    });
+
+    it('keeps a saved station with an unknown id selectable', async () => {
       const { app } = buildApp({ defaultStation: 'stale/id' });
       plugin = createPlugin(app);
 
-      expect(stationOptions(plugin)[1]).toEqual({
+      expect((await stationOptions(plugin))[1]).toEqual({
         const: 'stale/id',
         title: 'stale/id',
       });
+    });
+
+    it('still resolves when the nearby lookup rejects', async () => {
+      const { app, sendPosition } = buildApp({ defaultStation: 'stale/id' });
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(SF);
+
+      vi.mocked(stationsNear).mockRejectedValueOnce(new Error('database failed to load'));
+
+      expect(await stationOptions(plugin)).toEqual([
+        { const: 'auto', title: 'Closest station' },
+        { const: 'stale/id', title: 'stale/id' },
+      ]);
+      expect(app.error).toHaveBeenCalledWith(expect.stringContaining('database failed to load'));
     });
   });
 
@@ -131,13 +215,73 @@ describe('plugin', () => {
       await plugin.start({}, () => {});
       await sendPosition(SF);
 
-      expect(publishedStationName(app)).toBe(nearestStation(SF).name);
+      expect(publishedStationName(app)).toBe((await nearestStation(SF)).name);
+    });
+
+    it('publishes how far away the nearest station is', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(SF);
+
+      const metres = publishedValue(app, 'environment.tide.stationDistance') as number;
+      expect(metres).toBeGreaterThan(0);
+      expect(metres).toBeLessThan(MAX_STATION_KM * 1000);
+      expect(app.setPluginStatus).toHaveBeenLastCalledWith(expect.stringMatching(/ km away$/));
+    });
+
+    it('publishes no tide when no station is in range', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(MID_PACIFIC);
+
+      expect(publishedStationName(app)).toBeNull();
+      expect(publishedValue(app, 'environment.tide.heightNow')).toBeNull();
+      expect(app.setPluginError).not.toHaveBeenCalled();
+      expect(app.setPluginStatus).toHaveBeenCalledWith(`No tide station within ${MAX_STATION_KM} km of the vessel`);
+    });
+
+    it('still publishes a configured station out of range, with no distance', async () => {
+      const station = await nearestStation(SF);
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({ defaultStation: station.id }, () => {});
+      await sendPosition(MID_PACIFIC);
+
+      expect(publishedStationName(app)).toBe(station.name);
+      expect(publishedValue(app, 'environment.tide.stationDistance')).toBeNull();
+    });
+
+    it('keeps the error about a saved station when none is in range', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({ defaultStation: HALIFAX_CHS_ID }, () => {});
+      await sendPosition(MID_PACIFIC);
+
+      expect(app.setPluginError).toHaveBeenCalledWith(expect.stringContaining('no tide predictions'));
+      expect(app.setPluginStatus).not.toHaveBeenCalled();
+    });
+
+    it('clears the published tide when the vessel leaves range', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(SF);
+      await sendPosition(MID_PACIFIC);
+
+      for (const path of ['stationName', 'stationDistance', 'heightNow', 'state', 'timeHigh', 'heightLow']) {
+        expect(publishedValue(app, `environment.tide.${path}`), path).toBeNull();
+      }
+      const sent = vi.mocked(app.handleMessage).mock.calls.length;
+      await sendPosition(MID_PACIFIC);
+      expect(app.handleMessage).toHaveBeenCalledTimes(sent);
     });
 
     it('publishes the configured default station', async () => {
       // A real station near but not nearest to the SF position
-      const station = stationsNear({ ...SF, maxResults: 5 }).at(-1)!;
-      expect(station.id).not.toBe(nearestStation(SF).id);
+      const station = (await stationsNear({ ...SF, maxResults: 5 })).at(-1)!;
+      expect(station.id).not.toBe((await nearestStation(SF)).id);
 
       const { app, sendPosition } = buildApp();
       plugin = createPlugin(app);
@@ -148,13 +292,164 @@ describe('plugin', () => {
     });
 
     it('publishes the configured default station without a position', async () => {
-      const station = nearestStation(SF);
+      const station = await nearestStation(SF);
       const { app, sendPosition } = buildApp();
       plugin = createPlugin(app);
       await plugin.start({ defaultStation: station.id }, () => {});
       await sendPosition(null as unknown as Position);
 
       expect(publishedStationName(app)).toBe(station.name);
+    });
+
+    it('skips a nearer station with no tide model', async () => {
+      expect((await findStation(HALIFAX_CHS_ID)).harmonic_constituents).toHaveLength(0);
+
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(HALIFAX);
+
+      expect(publishedStationName(app)).toBe((await nearestStation(HALIFAX)).name);
+      expect(publishedValue(app, 'environment.tide.heightNow')).toEqual(expect.any(Number));
+      expect(publishedValue(app, 'environment.tide.heightNow')).not.toBe(0);
+    });
+
+    it('falls back to the nearest station when the configured one has no tide model', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({ defaultStation: HALIFAX_CHS_ID }, () => {});
+      await sendPosition(SF);
+
+      expect(publishedStationName(app)).toBe((await nearestStation(SF)).name);
+      expect(app.error).toHaveBeenCalledWith(expect.stringContaining('no tide predictions'));
+      expect(app.setPluginError).toHaveBeenCalledWith(expect.stringContaining('no tide predictions'));
+      expect(app.setPluginStatus).not.toHaveBeenCalledWith(expect.stringContaining('Updated tide forecast'));
+    });
+
+    it('does not reject when station lookups reject', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({ defaultStation: 'noaa/9414290' }, () => {});
+
+      vi.mocked(findStation).mockRejectedValueOnce(new Error('database failed to load'));
+      vi.mocked(nearestStation).mockRejectedValueOnce(new Error('database failed to load'));
+      await expect(sendPosition(SF)).resolves.toBeUndefined();
+
+      expect(app.error).toHaveBeenCalledTimes(2);
+      expect(app.setPluginError).toHaveBeenCalledWith(expect.stringContaining('database failed to load'));
+      expect(publishedStationName(app)).toBeNull();
+    });
+
+    it('still publishes when the position cannot be cached', async () => {
+      const { app, sendPosition } = buildApp();
+      vi.mocked(app.getDataDirPath).mockReturnValue('/dev/null/unwritable');
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(SF);
+
+      expect(app.error).toHaveBeenCalledWith(expect.stringContaining('cached position'));
+      expect(publishedStationName(app)).toBe((await nearestStation(SF)).name);
+    });
+
+    it('saves the newest position when cache writes overlap', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      let finishFirstWrite!: () => void;
+      const set = vi
+        .spyOn(FileCache.prototype, 'set')
+        .mockImplementationOnce(() => new Promise<void>((resolve) => (finishFirstWrite = resolve)))
+        .mockResolvedValue(undefined);
+      const first = sendPosition({ latitude: 42.35, longitude: -71.05 });
+      await vi.waitFor(() => expect(set).toHaveBeenCalledTimes(1));
+      const second = sendPosition(SF);
+      await new Promise((resolve) => setTimeout(resolve));
+      expect(set).toHaveBeenCalledTimes(1);
+
+      finishFirstWrite();
+      await Promise.all([first, second]);
+      expect(set).toHaveBeenLastCalledWith('position', SF);
+      set.mockRestore();
+    });
+
+    it('reports no failure from a lookup that fails after stop', async () => {
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      let fail!: (error: Error) => void;
+      vi.mocked(nearestStation).mockImplementationOnce(
+        () => new Promise((_, reject) => (fail = reject)),
+      );
+      const update = sendPosition(SF);
+      await vi.waitFor(() => expect(fail).toBeDefined());
+      plugin.stop();
+      fail(new Error('lookup failed'));
+      await update;
+
+      expect(app.setPluginError).not.toHaveBeenCalled();
+    });
+
+    it('does not let an older position overwrite a newer one', async () => {
+      const older = await nearestStation({ latitude: 42.35, longitude: -71.05 }); // Boston
+      const newer = await nearestStation(SF);
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      // Answer the older lookup only after the newer update has finished
+      const lookup = holdNextLookup();
+      const olderUpdate = sendPosition({ latitude: 42.35, longitude: -71.05 });
+      await lookup.started;
+      await sendPosition(SF);
+      lookup.release(older);
+      await olderUpdate;
+
+      expect(publishedStationNames(app)).toEqual([newer.name]);
+    });
+
+    it('does not publish a lookup that finishes after stop', async () => {
+      const station = await nearestStation(SF);
+      const { app, sendPosition } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      const lookup = holdNextLookup();
+      const update = sendPosition(SF);
+      await lookup.started;
+      plugin.stop();
+      lookup.release(station);
+      await update;
+
+      expect(app.handleMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('start', () => {
+    it('throws synchronously so the server can roll back', () => {
+      const { app } = buildApp();
+      vi.mocked(app.registerResourceProvider).mockImplementation(() => {
+        throw new Error('already registered');
+      });
+      plugin = createPlugin(app);
+
+      expect(() => plugin!.start({}, () => {})).toThrow('already registered');
+    });
+
+    it('stops serving the API after a failed start', () => {
+      const { app } = buildApp();
+      vi.mocked(app.registerResourceProvider).mockImplementation(() => {
+        throw new Error('already registered');
+      });
+      plugin = createPlugin(app);
+      expect(() => plugin!.start({}, () => {})).toThrow();
+
+      const forward = (app as unknown as { use: Mock }).use.mock.calls[0][1];
+      const next = vi.fn();
+      forward({}, {}, next);
+
+      expect(next).toHaveBeenCalledOnce();
     });
   });
 
@@ -201,7 +496,7 @@ describe('plugin', () => {
       await plugin.start({}, () => {});
       await sendPosition(SF);
 
-      expect(publishedStationName(app)).toBe(nearestStation(SF).name);
+      expect(publishedStationName(app)).toBe((await nearestStation(SF)).name);
       expect(app.error).not.toHaveBeenCalled();
     });
   });
