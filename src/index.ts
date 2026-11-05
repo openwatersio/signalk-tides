@@ -217,6 +217,9 @@ export default function (app: ServerAPI): Plugin {
     let stopped = false;
     let tidesCleared = false;
     let positionWrite: Promise<unknown> = Promise.resolve();
+    // Keep the latest depth reading so it can be published once a predictor
+    // becomes available, even if the depth tick arrived first.
+    let lastDepth: { value: number; time: Date } | null = null;
     unsubscribes.push(() => {
       stopped = true;
     });
@@ -412,7 +415,8 @@ export default function (app: ServerAPI): Plugin {
       const depth = app.getSelfPath("environment.depth.belowSurface.value");
       if (typeof depth !== "number" || !Number.isFinite(depth)) return;
 
-      publishCompensatedDepth(depth, new Date());
+      lastDepth = { value: depth, time: new Date() };
+      publishCompensatedDepth(lastDepth.value, lastDepth.time);
     }
 
     function publishCompensatedDepth(depth: number, time: Date) {
@@ -507,6 +511,11 @@ export default function (app: ServerAPI): Plugin {
         // A fallback keeps the lookup's error showing
         if (!lookupFailed) app.setPluginStatus(forecastStatus(lastForecast));
         updateTides();
+
+        // Replay a depth reading received before the predictor was ready.
+        if (lastDepth) {
+          publishCompensatedDepth(lastDepth.value, lastDepth.time);
+        }
       } catch (e: unknown) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         app.setPluginError((e as any).message);

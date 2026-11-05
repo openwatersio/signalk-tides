@@ -296,6 +296,13 @@ describe('plugin', () => {
       for (const path of ['stationName', 'stationDistance', 'heightNow', 'state', 'timeHigh', 'heightLow']) {
         expect(publishedValue(app, `environment.tide.${path}`), path).toBeNull();
       }
+      for (const path of [
+        'belowSurfaceTideCompensated',
+        'belowSurfaceTideCompensatedLAT',
+        'belowSurfaceTideCompensatedMLLW',
+      ]) {
+        expect(publishedValue(app, `environment.depth.${path}`), path).toBeNull();
+      }
       const sent = vi.mocked(app.handleMessage).mock.calls.length;
       await sendPosition(MID_PACIFIC);
       expect(app.handleMessage).toHaveBeenCalledTimes(sent);
@@ -530,14 +537,15 @@ describe('plugin', () => {
       plugin = createPlugin(app);
       await plugin.start({}, () => {});
 
-      const paths = vi
+      const entries = vi
         .mocked(app.subscriptionmanager.subscribe)
-        .mock.calls.flatMap(([subscription]) =>
-          subscription.subscribe.map((entry) => entry.path),
-        );
+        .mock.calls.flatMap(([subscription]) => subscription.subscribe);
 
-      expect(paths).toContain('navigation.position');
-      expect(paths).toContain('environment.depth.belowSurface');
+      expect(entries.map((entry) => entry.path)).toContain('navigation.position');
+      expect(entries).toContainEqual({
+        path: 'environment.depth.belowSurface',
+        policy: 'instant',
+      });
     });
 
     it('publishes chart, LAT and MLLW compensated depths on a depth tick', async () => {
@@ -563,6 +571,23 @@ describe('plugin', () => {
         12 - predictor.getWaterLevelAtTime({ time: now, datum: 'MLLW' }).level,
         3,
       );
+    });
+
+    it('replays a depth reading that arrived before the predictor', async () => {
+      const { app, sendPosition, sendDepth } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      // No position or default station yet, so this tick cannot be published.
+      await sendDepth(12);
+      expect(app.handleMessage).not.toHaveBeenCalled();
+
+      await sendPosition(SF);
+
+      const values = publishedValues(app);
+      expect(values['environment.depth.belowSurfaceTideCompensated']).toBeTypeOf('number');
+      expect(values['environment.depth.belowSurfaceTideCompensatedLAT']).toBeTypeOf('number');
+      expect(values['environment.depth.belowSurfaceTideCompensatedMLLW']).toBeTypeOf('number');
     });
 
     it('publishes null when the station has no LAT datum', async () => {
