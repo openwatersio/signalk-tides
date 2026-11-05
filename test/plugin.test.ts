@@ -293,16 +293,10 @@ describe('plugin', () => {
       await sendPosition(SF);
       await sendPosition(MID_PACIFIC);
 
-      for (const path of ['stationName', 'stationDistance', 'heightNow', 'state', 'timeHigh', 'heightLow']) {
+      for (const path of ['stationName', 'stationDistance', 'datum', 'heightNow', 'state', 'timeHigh', 'heightLow']) {
         expect(publishedValue(app, `environment.tide.${path}`), path).toBeNull();
       }
-      for (const path of [
-        'belowSurfaceTideCompensated',
-        'belowSurfaceTideCompensatedLAT',
-        'belowSurfaceTideCompensatedMLLW',
-      ]) {
-        expect(publishedValue(app, `environment.depth.${path}`), path).toBeNull();
-      }
+      expect(publishedValue(app, 'environment.depth.belowChartDatum')).toBeNull();
       const sent = vi.mocked(app.handleMessage).mock.calls.length;
       await sendPosition(MID_PACIFIC);
       expect(app.handleMessage).toHaveBeenCalledTimes(sent);
@@ -488,9 +482,10 @@ describe('plugin', () => {
       'environment.tide.heightHigh',
       'environment.tide.heightNow',
       'environment.tide.heightLow',
+      'environment.depth.belowChartDatum',
     ];
 
-    it('suggests the depth category for the tide heights', async () => {
+    it('suggests the depth category for depths and tide heights', async () => {
       const { app } = buildApp();
       plugin = createPlugin(app);
       await plugin.start({}, () => {});
@@ -548,7 +543,7 @@ describe('plugin', () => {
       });
     });
 
-    it('publishes chart, LAT and MLLW compensated depths on a depth tick', async () => {
+    it('publishes the depth below chart datum on a depth tick', async () => {
       const { app, sendPosition, sendDepth } = buildApp();
       plugin = createPlugin(app);
       await plugin.start({}, () => {});
@@ -559,16 +554,8 @@ describe('plugin', () => {
       const predictor = await nearestStation(SF);
       const now = new Date();
 
-      expect(values['environment.depth.belowSurfaceTideCompensated']).toBeCloseTo(
+      expect(values['environment.depth.belowChartDatum']).toBeCloseTo(
         12 - predictor.getWaterLevelAtTime({ time: now }).level,
-        3,
-      );
-      expect(values['environment.depth.belowSurfaceTideCompensatedLAT']).toBeCloseTo(
-        12 - predictor.getWaterLevelAtTime({ time: now, datum: 'LAT' }).level,
-        3,
-      );
-      expect(values['environment.depth.belowSurfaceTideCompensatedMLLW']).toBeCloseTo(
-        12 - predictor.getWaterLevelAtTime({ time: now, datum: 'MLLW' }).level,
         3,
       );
     });
@@ -584,40 +571,35 @@ describe('plugin', () => {
 
       await sendPosition(SF);
 
-      const values = publishedValues(app);
-      expect(values['environment.depth.belowSurfaceTideCompensated']).toBeTypeOf('number');
-      expect(values['environment.depth.belowSurfaceTideCompensatedLAT']).toBeTypeOf('number');
-      expect(values['environment.depth.belowSurfaceTideCompensatedMLLW']).toBeTypeOf('number');
+      expect(publishedValue(app, 'environment.depth.belowChartDatum')).toBeTypeOf('number');
     });
 
-    it('publishes null when the station has no LAT datum', async () => {
-      const { app, sendPosition, sendDepth } = buildApp({
-        defaultStation: 'noaa/8414781', // Winterport: MLLW, but no LAT
-      });
+    it.each([
+      ['noaa/8414781', 'MLLW'], // Winterport
+      ['kartverket/AES', 'CD'], // Ålesund
+      ['noaa/8519024', 'MSL'], // Fort Wadsworth: no usable chart datum
+    ])('names the datum of %s', async (station, datum) => {
+      const { app, sendPosition } = buildApp({ defaultStation: station });
       plugin = createPlugin(app);
-      await plugin.start({ defaultStation: 'noaa/8414781' }, () => {});
+      await plugin.start({ defaultStation: station }, () => {});
       await sendPosition(null as unknown as Position);
-      await sendDepth(10);
 
-      const values = publishedValues(app);
-      expect(values['environment.depth.belowSurfaceTideCompensatedLAT']).toBeNull();
-      expect(values['environment.depth.belowSurfaceTideCompensatedMLLW']).toBeTypeOf('number');
-      expect(values['environment.depth.belowSurfaceTideCompensated']).toBeTypeOf('number');
+      expect(publishedValue(app, 'environment.tide.datum')).toBe(datum);
     });
 
-    it('publishes null when the station has no MLLW datum', async () => {
-      const { app, sendPosition, sendDepth } = buildApp({
-        defaultStation: 'kartverket/AES', // Ålesund: LAT, but no MLLW
-      });
+    it('publishes null depth for a station without a chart datum', async () => {
+      const station = 'noaa/8519024'; // Fort Wadsworth: heights are above MSL
+      const { app, sendPosition, sendDepth } = buildApp({ defaultStation: station });
       plugin = createPlugin(app);
-      await plugin.start({ defaultStation: 'kartverket/AES' }, () => {});
+      await plugin.start({ defaultStation: station }, () => {});
       await sendPosition(null as unknown as Position);
+      expect(publishedValue(app, 'environment.tide.datum')).toBe('MSL');
+
+      const sent = vi.mocked(app.handleMessage).mock.calls.length;
       await sendDepth(10);
 
-      const values = publishedValues(app);
-      expect(values['environment.depth.belowSurfaceTideCompensatedMLLW']).toBeNull();
-      expect(values['environment.depth.belowSurfaceTideCompensatedLAT']).toBeTypeOf('number');
-      expect(values['environment.depth.belowSurfaceTideCompensated']).toBeTypeOf('number');
+      expect(app.handleMessage).toHaveBeenCalledTimes(sent + 1);
+      expect(publishedValue(app, 'environment.depth.belowChartDatum')).toBeNull();
     });
   });
 

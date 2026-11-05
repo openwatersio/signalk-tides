@@ -22,14 +22,11 @@ It publishes the following [tide data](https://signalk.org/specification/1.7.0/d
 * `environment.tide.heightNow`
 * `environment.tide.stationName`
 * `environment.tide.stationDistance` — metres from the vessel to the station, when it was chosen by position
+* `environment.tide.datum` — the vertical datum the tide heights and `environment.depth.belowChartDatum` are measured from, such as `MLLW`, `LAT` or `CD`. This is the tide station's chart datum. For the rare station without one it is `MSL`, and only the tide heights use it.
 * `environment.tide.state` — tide trend, `rising` or `falling`
 * `environment.tide.timeToNextExtreme` — seconds until the next high or low water
 
-For each `environment.depth.belowSurface` reading it publishes:
-
-* `environment.depth.belowSurfaceTideCompensated` — depth below the station's chart datum
-* `environment.depth.belowSurfaceTideCompensatedLAT` — depth below Lowest Astronomical Tide, or `null` when LAT is unavailable
-* `environment.depth.belowSurfaceTideCompensatedMLLW` — depth below Mean Lower Low Water, or `null` when MLLW is unavailable
+For each `environment.depth.belowSurface` reading it publishes `environment.depth.belowChartDatum`, the depth below the datum named in `environment.tide.datum`. Charts for an area normally use the same datum as its tide stations, so you can compare this depth with charted soundings. That comparison doesn't hold when the station is far away or in another country's waters. The depth is `null` when the station has no chart datum.
 
 ### Tides API
 

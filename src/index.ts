@@ -44,22 +44,12 @@ interface Config {
 // by slackwater, so this is cheap and needs no configuration.
 const UPDATE_INTERVAL = 60 * 1000; // 1 minute
 const API_PATH = "/signalk/v2/api/tides";
-const COMPENSATED_DEPTH_PATH =
-  "environment.depth.belowSurfaceTideCompensated" as Path;
-const COMPENSATED_DEPTH_LAT_PATH =
-  "environment.depth.belowSurfaceTideCompensatedLAT" as Path;
-const COMPENSATED_DEPTH_MLLW_PATH =
-  "environment.depth.belowSurfaceTideCompensatedMLLW" as Path;
-
-const COMPENSATED_DEPTH_PATHS = [
-  COMPENSATED_DEPTH_PATH,
-  COMPENSATED_DEPTH_LAT_PATH,
-  COMPENSATED_DEPTH_MLLW_PATH,
-];
+const COMPENSATED_DEPTH_PATH = "environment.depth.belowChartDatum" as Path;
 
 const TIDE_PATHS = [
   "environment.tide.stationName",
   "environment.tide.stationDistance",
+  "environment.tide.datum",
   "environment.tide.heightNow",
   "environment.tide.state",
   "environment.tide.timeToNextExtreme",
@@ -72,10 +62,11 @@ const TIDE_PATHS = [
 // Tide heights are water levels, so clients should show them in the user's
 // depth unit. Without a category the server picks one from the unit alone, and
 // for meters that is distance: kilometers or miles, depending on the preset.
-const TIDE_HEIGHT_PATHS = [
+const DEPTH_UNIT_PATHS = [
   "environment.tide.heightHigh",
   "environment.tide.heightNow",
   "environment.tide.heightLow",
+  COMPENSATED_DEPTH_PATH,
 ];
 
 export default function (app: ServerAPI): Plugin {
@@ -169,7 +160,7 @@ export default function (app: ServerAPI): Plugin {
   async function suggestDepthUnits() {
     // Signal K server 2.30 added setDefaultMetadata
     if (typeof app.setDefaultMetadata !== "function") return;
-    for (const path of TIDE_HEIGHT_PATHS) {
+    for (const path of DEPTH_UNIT_PATHS) {
       try {
         // MetaValue types displayUnits as the server resolves it; a suggestion
         // needs only the category.
@@ -422,12 +413,9 @@ export default function (app: ServerAPI): Plugin {
     function publishCompensatedDepth(depth: number, time: Date) {
       if (!lastPredictor) return;
 
-      const chartLevel = waterLevelAt(time);
-      const latLevel = waterLevelAt(time, "LAT");
-      const mllwLevel = waterLevelAt(time, "MLLW");
-
-      const compensate = (level: number | null) =>
-        level === null ? null : depth - level;
+      // Without a chart datum Slackwater measures from MSL, which sits above chart
+      // datum, so the depth would read deeper than the chart.
+      const level = lastForecast?.datum ? waterLevelAt(time) : null;
 
       const delta: Delta = {
         context: ("vessels." + app.selfId) as Context,
@@ -437,15 +425,7 @@ export default function (app: ServerAPI): Plugin {
             values: [
               {
                 path: COMPENSATED_DEPTH_PATH,
-                value: compensate(chartLevel),
-              },
-              {
-                path: COMPENSATED_DEPTH_LAT_PATH,
-                value: compensate(latLevel),
-              },
-              {
-                path: COMPENSATED_DEPTH_MLLW_PATH,
-                value: compensate(mllwLevel),
+                value: level === null ? null : depth - level,
               },
             ],
           },
@@ -458,21 +438,11 @@ export default function (app: ServerAPI): Plugin {
       app.handleMessage(plugin.id, delta);
     }
 
-    function waterLevelAt(time: Date, datum?: string): number | null {
+    function waterLevelAt(time: Date): number | null {
       if (!lastPredictor) return null;
 
-      // Slackwater can only convert to a datum it knows, and every conversion
-      // goes through MSL. Treat a missing either as "this datum is unavailable".
-      if (
-        datum !== undefined &&
-        (lastPredictor.datums?.[datum] === undefined ||
-          lastPredictor.datums?.MSL === undefined)
-      ) {
-        return null;
-      }
-
       try {
-        return lastPredictor.getWaterLevelAtTime({ time, datum }).level;
+        return lastPredictor.getWaterLevelAtTime({ time }).level;
       } catch {
         return null;
       }
@@ -532,7 +502,7 @@ export default function (app: ServerAPI): Plugin {
         updates: [
           {
             timestamp: new Date().toISOString() as Timestamp,
-            values: [...TIDE_PATHS, ...COMPENSATED_DEPTH_PATHS].map((path) => ({
+            values: [...TIDE_PATHS, COMPENSATED_DEPTH_PATH].map((path) => ({
               path,
               value: null,
             })),
@@ -575,6 +545,11 @@ export default function (app: ServerAPI): Plugin {
                     ? null
                     : lastForecast.distance * 1000,
               },
+              // Slackwater gives heights above MSL for a station with no chart datum
+              {
+                path: "environment.tide.datum" as Path,
+                value: lastForecast.datum ?? "MSL",
+              },
               {
                 path: "environment.tide.heightNow" as Path,
                 value: heightNow,
@@ -614,6 +589,21 @@ export default function (app: ServerAPI): Plugin {
                 value: {
                   description:
                     "Tide trend at the current position: rising or falling",
+                },
+              },
+              {
+                path: "environment.tide.datum" as Path,
+                value: {
+                  description:
+                    "Vertical datum of the tide heights and environment.depth.belowChartDatum: the station's chart datum, such as MLLW, LAT or CD. MSL when the station has none, and then only the heights use it.",
+                },
+              },
+              {
+                path: COMPENSATED_DEPTH_PATH,
+                value: {
+                  units: "m",
+                  description:
+                    "Depth below the chart datum named in environment.tide.datum, or null when the station has no chart datum",
                 },
               },
               {
