@@ -296,7 +296,7 @@ describe('plugin', () => {
       for (const path of ['stationName', 'stationDistance', 'datum', 'heightNow', 'state', 'timeHigh', 'heightLow']) {
         expect(publishedValue(app, `environment.tide.${path}`), path).toBeNull();
       }
-      expect(publishedValue(app, 'environment.depth.belowSurfaceTideCompensated')).toBeNull();
+      expect(publishedValue(app, 'environment.depth.belowChartDatum')).toBeNull();
       const sent = vi.mocked(app.handleMessage).mock.calls.length;
       await sendPosition(MID_PACIFIC);
       expect(app.handleMessage).toHaveBeenCalledTimes(sent);
@@ -482,9 +482,10 @@ describe('plugin', () => {
       'environment.tide.heightHigh',
       'environment.tide.heightNow',
       'environment.tide.heightLow',
+      'environment.depth.belowChartDatum',
     ];
 
-    it('suggests the depth category for the tide heights', async () => {
+    it('suggests the depth category for depths and tide heights', async () => {
       const { app } = buildApp();
       plugin = createPlugin(app);
       await plugin.start({}, () => {});
@@ -553,7 +554,7 @@ describe('plugin', () => {
       const predictor = await nearestStation(SF);
       const now = new Date();
 
-      expect(values['environment.depth.belowSurfaceTideCompensated']).toBeCloseTo(
+      expect(values['environment.depth.belowChartDatum']).toBeCloseTo(
         12 - predictor.getWaterLevelAtTime({ time: now }).level,
         3,
       );
@@ -570,7 +571,7 @@ describe('plugin', () => {
 
       await sendPosition(SF);
 
-      expect(publishedValue(app, 'environment.depth.belowSurfaceTideCompensated')).toBeTypeOf('number');
+      expect(publishedValue(app, 'environment.depth.belowChartDatum')).toBeTypeOf('number');
     });
 
     it.each([
@@ -584,6 +585,21 @@ describe('plugin', () => {
       await sendPosition(null as unknown as Position);
 
       expect(publishedValue(app, 'environment.tide.datum')).toBe(datum);
+    });
+
+    it('publishes null depth for a station without a chart datum', async () => {
+      const station = 'noaa/8519024'; // Fort Wadsworth: heights are above MSL
+      const { app, sendPosition, sendDepth } = buildApp({ defaultStation: station });
+      plugin = createPlugin(app);
+      await plugin.start({ defaultStation: station }, () => {});
+      await sendPosition(null as unknown as Position);
+      expect(publishedValue(app, 'environment.tide.datum')).toBe('MSL');
+
+      const sent = vi.mocked(app.handleMessage).mock.calls.length;
+      await sendDepth(10);
+
+      expect(app.handleMessage).toHaveBeenCalledTimes(sent + 1);
+      expect(publishedValue(app, 'environment.depth.belowChartDatum')).toBeNull();
     });
   });
 
