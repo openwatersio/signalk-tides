@@ -11,7 +11,7 @@ Install `signalk-tides` from the SignalK Appstore or manually by running `npm in
 
 ## Usage
 
-This plugin depends on `navigation.position`.
+This plugin depends on `navigation.position`. When `environment.depth.belowSurface` is available, it also publishes tide-compensated depth.
 
 It publishes the following [tide data](https://signalk.org/specification/1.7.0/doc/vesselsBranch.html#vesselsregexpenvironmenttide):
 
@@ -24,6 +24,12 @@ It publishes the following [tide data](https://signalk.org/specification/1.7.0/d
 * `environment.tide.stationDistance` — metres from the vessel to the station, when it was chosen by position
 * `environment.tide.state` — tide trend, `rising` or `falling`
 * `environment.tide.timeToNextExtreme` — seconds until the next high or low water
+
+For each `environment.depth.belowSurface` reading it publishes:
+
+* `environment.depth.belowSurfaceTideCompensated` — depth below the station's chart datum
+* `environment.depth.belowSurfaceTideCompensatedLAT` — depth below Lowest Astronomical Tide, or `null` when LAT is unavailable
+* `environment.depth.belowSurfaceTideCompensatedMLLW` — depth below Mean Lower Low Water, or `null` when MLLW is unavailable
 
 ### Tides API
 

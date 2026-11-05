@@ -39,6 +39,9 @@ async function stationOptions(plugin: Plugin): Promise<StationOption[]> {
 
 function buildApp(configuration?: { defaultStation?: string }) {
   let onPositionDelta: (() => Promise<void>) | undefined;
+  let onDepthDelta: (() => Promise<void>) | undefined;
+  let position: Position | null = null;
+  let depth: number | null = null;
 
   const app = {
     debug: Object.assign(vi.fn(), { enabled: false }),
@@ -52,16 +55,22 @@ function buildApp(configuration?: { defaultStation?: string }) {
     registerResourceProvider: vi.fn(),
     handleMessage: vi.fn(),
     setDefaultMetadata: vi.fn(async () => true),
-    getSelfPath: vi.fn(),
+    getSelfPath: vi.fn((path: string) => {
+      if (path === 'navigation.position.value') return position;
+      if (path === 'environment.depth.belowSurface.value') return depth;
+      return undefined;
+    }),
     subscriptionmanager: {
       subscribe: vi.fn(
         (
-          _subscription: unknown,
+          subscription: { subscribe?: { path?: string }[] },
           _unsubscribes: unknown,
           _onError: unknown,
           onDelta: () => Promise<void>,
         ) => {
-          onPositionDelta = onDelta;
+          const paths = subscription.subscribe?.map((entry) => entry.path) ?? [];
+          if (paths.includes('navigation.position')) onPositionDelta = onDelta;
+          if (paths.includes('environment.depth.belowSurface')) onDepthDelta = onDelta;
         },
       ),
     },
@@ -70,9 +79,14 @@ function buildApp(configuration?: { defaultStation?: string }) {
   return {
     app: app as unknown as ServerAPI,
     // Simulates a navigation.position delta arriving
-    async sendPosition(position: Position) {
-      app.getSelfPath.mockReturnValue(position);
+    async sendPosition(newPosition: Position) {
+      position = newPosition;
       await onPositionDelta?.();
+    },
+    // Simulates an environment.depth.belowSurface delta arriving
+    async sendDepth(newDepth: number) {
+      depth = newDepth;
+      await onDepthDelta?.();
     },
   };
 }
@@ -107,6 +121,15 @@ function publishedValue(app: ServerAPI, path: string): unknown {
   return (delta.updates ?? [])
     .flatMap((u) => ("values" in u ? u.values : []))
     .find((v) => v.path === path)?.value;
+}
+
+function publishedValues(app: ServerAPI): Record<string, unknown> {
+  const delta = vi.mocked(app.handleMessage).mock.calls.at(-1)![1];
+  return Object.fromEntries(
+    (delta.updates ?? [])
+      .flatMap((update) => ('values' in update ? (update.values ?? []) : []))
+      .map(({ path, value }) => [path, value]),
+  );
 }
 
 function publishedStationName(app: ServerAPI): unknown {
@@ -272,6 +295,13 @@ describe('plugin', () => {
 
       for (const path of ['stationName', 'stationDistance', 'heightNow', 'state', 'timeHigh', 'heightLow']) {
         expect(publishedValue(app, `environment.tide.${path}`), path).toBeNull();
+      }
+      for (const path of [
+        'belowSurfaceTideCompensated',
+        'belowSurfaceTideCompensatedLAT',
+        'belowSurfaceTideCompensatedMLLW',
+      ]) {
+        expect(publishedValue(app, `environment.depth.${path}`), path).toBeNull();
       }
       const sent = vi.mocked(app.handleMessage).mock.calls.length;
       await sendPosition(MID_PACIFIC);
@@ -498,6 +528,96 @@ describe('plugin', () => {
 
       expect(publishedStationName(app)).toBe((await nearestStation(SF)).name);
       expect(app.error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('compensated depth', () => {
+    it('subscribes to the depth below surface', async () => {
+      const { app } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      const entries = vi
+        .mocked(app.subscriptionmanager.subscribe)
+        .mock.calls.flatMap(([subscription]) => subscription.subscribe);
+
+      expect(entries.map((entry) => entry.path)).toContain('navigation.position');
+      expect(entries).toContainEqual({
+        path: 'environment.depth.belowSurface',
+        policy: 'instant',
+      });
+    });
+
+    it('publishes chart, LAT and MLLW compensated depths on a depth tick', async () => {
+      const { app, sendPosition, sendDepth } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+      await sendPosition(SF);
+      await sendDepth(12);
+
+      const values = publishedValues(app);
+      const predictor = await nearestStation(SF);
+      const now = new Date();
+
+      expect(values['environment.depth.belowSurfaceTideCompensated']).toBeCloseTo(
+        12 - predictor.getWaterLevelAtTime({ time: now }).level,
+        3,
+      );
+      expect(values['environment.depth.belowSurfaceTideCompensatedLAT']).toBeCloseTo(
+        12 - predictor.getWaterLevelAtTime({ time: now, datum: 'LAT' }).level,
+        3,
+      );
+      expect(values['environment.depth.belowSurfaceTideCompensatedMLLW']).toBeCloseTo(
+        12 - predictor.getWaterLevelAtTime({ time: now, datum: 'MLLW' }).level,
+        3,
+      );
+    });
+
+    it('replays a depth reading that arrived before the predictor', async () => {
+      const { app, sendPosition, sendDepth } = buildApp();
+      plugin = createPlugin(app);
+      await plugin.start({}, () => {});
+
+      // No position or default station yet, so this tick cannot be published.
+      await sendDepth(12);
+      expect(app.handleMessage).not.toHaveBeenCalled();
+
+      await sendPosition(SF);
+
+      const values = publishedValues(app);
+      expect(values['environment.depth.belowSurfaceTideCompensated']).toBeTypeOf('number');
+      expect(values['environment.depth.belowSurfaceTideCompensatedLAT']).toBeTypeOf('number');
+      expect(values['environment.depth.belowSurfaceTideCompensatedMLLW']).toBeTypeOf('number');
+    });
+
+    it('publishes null when the station has no LAT datum', async () => {
+      const { app, sendPosition, sendDepth } = buildApp({
+        defaultStation: 'noaa/8414781', // Winterport: MLLW, but no LAT
+      });
+      plugin = createPlugin(app);
+      await plugin.start({ defaultStation: 'noaa/8414781' }, () => {});
+      await sendPosition(null as unknown as Position);
+      await sendDepth(10);
+
+      const values = publishedValues(app);
+      expect(values['environment.depth.belowSurfaceTideCompensatedLAT']).toBeNull();
+      expect(values['environment.depth.belowSurfaceTideCompensatedMLLW']).toBeTypeOf('number');
+      expect(values['environment.depth.belowSurfaceTideCompensated']).toBeTypeOf('number');
+    });
+
+    it('publishes null when the station has no MLLW datum', async () => {
+      const { app, sendPosition, sendDepth } = buildApp({
+        defaultStation: 'kartverket/AES', // Ålesund: LAT, but no MLLW
+      });
+      plugin = createPlugin(app);
+      await plugin.start({ defaultStation: 'kartverket/AES' }, () => {});
+      await sendPosition(null as unknown as Position);
+      await sendDepth(10);
+
+      const values = publishedValues(app);
+      expect(values['environment.depth.belowSurfaceTideCompensatedMLLW']).toBeNull();
+      expect(values['environment.depth.belowSurfaceTideCompensatedLAT']).toBeTypeOf('number');
+      expect(values['environment.depth.belowSurfaceTideCompensated']).toBeTypeOf('number');
     });
   });
 
