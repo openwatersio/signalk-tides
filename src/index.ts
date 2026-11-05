@@ -46,20 +46,11 @@ const UPDATE_INTERVAL = 60 * 1000; // 1 minute
 const API_PATH = "/signalk/v2/api/tides";
 const COMPENSATED_DEPTH_PATH =
   "environment.depth.belowSurfaceTideCompensated" as Path;
-const COMPENSATED_DEPTH_LAT_PATH =
-  "environment.depth.belowSurfaceTideCompensatedLAT" as Path;
-const COMPENSATED_DEPTH_MLLW_PATH =
-  "environment.depth.belowSurfaceTideCompensatedMLLW" as Path;
-
-const COMPENSATED_DEPTH_PATHS = [
-  COMPENSATED_DEPTH_PATH,
-  COMPENSATED_DEPTH_LAT_PATH,
-  COMPENSATED_DEPTH_MLLW_PATH,
-];
 
 const TIDE_PATHS = [
   "environment.tide.stationName",
   "environment.tide.stationDistance",
+  "environment.tide.datum",
   "environment.tide.heightNow",
   "environment.tide.state",
   "environment.tide.timeToNextExtreme",
@@ -422,12 +413,8 @@ export default function (app: ServerAPI): Plugin {
     function publishCompensatedDepth(depth: number, time: Date) {
       if (!lastPredictor) return;
 
-      const chartLevel = waterLevelAt(time);
-      const latLevel = waterLevelAt(time, "LAT");
-      const mllwLevel = waterLevelAt(time, "MLLW");
-
-      const compensate = (level: number | null) =>
-        level === null ? null : depth - level;
+      // Relative to the same datum as the tide heights, named in environment.tide.datum
+      const level = waterLevelAt(time);
 
       const delta: Delta = {
         context: ("vessels." + app.selfId) as Context,
@@ -437,15 +424,7 @@ export default function (app: ServerAPI): Plugin {
             values: [
               {
                 path: COMPENSATED_DEPTH_PATH,
-                value: compensate(chartLevel),
-              },
-              {
-                path: COMPENSATED_DEPTH_LAT_PATH,
-                value: compensate(latLevel),
-              },
-              {
-                path: COMPENSATED_DEPTH_MLLW_PATH,
-                value: compensate(mllwLevel),
+                value: level === null ? null : depth - level,
               },
             ],
           },
@@ -458,21 +437,11 @@ export default function (app: ServerAPI): Plugin {
       app.handleMessage(plugin.id, delta);
     }
 
-    function waterLevelAt(time: Date, datum?: string): number | null {
+    function waterLevelAt(time: Date): number | null {
       if (!lastPredictor) return null;
 
-      // Slackwater can only convert to a datum it knows, and every conversion
-      // goes through MSL. Treat a missing either as "this datum is unavailable".
-      if (
-        datum !== undefined &&
-        (lastPredictor.datums?.[datum] === undefined ||
-          lastPredictor.datums?.MSL === undefined)
-      ) {
-        return null;
-      }
-
       try {
-        return lastPredictor.getWaterLevelAtTime({ time, datum }).level;
+        return lastPredictor.getWaterLevelAtTime({ time }).level;
       } catch {
         return null;
       }
@@ -532,7 +501,7 @@ export default function (app: ServerAPI): Plugin {
         updates: [
           {
             timestamp: new Date().toISOString() as Timestamp,
-            values: [...TIDE_PATHS, ...COMPENSATED_DEPTH_PATHS].map((path) => ({
+            values: [...TIDE_PATHS, COMPENSATED_DEPTH_PATH].map((path) => ({
               path,
               value: null,
             })),
@@ -575,6 +544,11 @@ export default function (app: ServerAPI): Plugin {
                     ? null
                     : lastForecast.distance * 1000,
               },
+              // Slackwater gives heights above MSL for a station with no chart datum
+              {
+                path: "environment.tide.datum" as Path,
+                value: lastForecast.datum ?? "MSL",
+              },
               {
                 path: "environment.tide.heightNow" as Path,
                 value: heightNow,
@@ -614,6 +588,13 @@ export default function (app: ServerAPI): Plugin {
                 value: {
                   description:
                     "Tide trend at the current position: rising or falling",
+                },
+              },
+              {
+                path: "environment.tide.datum" as Path,
+                value: {
+                  description:
+                    "Vertical datum of the tide heights and tide-compensated depth: the station's chart datum, such as MLLW, LAT or CD, or MSL when it has none",
                 },
               },
               {
