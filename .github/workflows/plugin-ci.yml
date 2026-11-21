@@ -1,0 +1,19 @@
+# Signal K's shared plugin CI: installs, builds and tests the plugin on Linux,
+# macOS and Windows. The Signal K plugin registry looks for this run on the
+# commit each release is published from and scores the plugin by it.
+name: Signal K Plugin CI
+
+on:
+  push: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  plugin-ci:
+    uses: SignalK/signalk-server/.github/workflows/plugin-ci.yml@master
+    with:
+      # The registry runs this command too. The browser suite needs Chromium,
+      # which neither has, so it runs in ci.yml.
+      test-command: npm run test:node
