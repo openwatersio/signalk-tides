@@ -71,4 +71,4 @@ In Freeboard-SK, press and hold an empty spot in a corner of the chart (or right
 
 ## License
 
-This plugin is a fork of the [signalk-tides-api](https://github.com/joabakk/signalk-tides-api) plugin (which is no longer working) and is licensed under the [Apache License 2.0](LICENSE). Kudos to @joabakk and @sbender9 for the original work.
+This plugin is a fork of the [signalk-tides-api](https://github.com/joabakk/signalk-tides-api) plugin (which is no longer working) and is licensed under the [Apache License 2.0](LICENSE). Kudos to @joabakk and @sbender9 for the original work. Changes since the fork are © Open Water Software, LLC and contributors.
