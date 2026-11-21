@@ -19,7 +19,9 @@
   },
   "keywords": [
     "signalk-webapp",
-    "signalk-node-server-plugin"
+    "signalk-node-server-plugin",
+    "signalk-category-plotter-extensions",
+    "signalk-category-weather"
   ],
   "author": {
     "name": "Brandon Keepers",
@@ -84,6 +86,10 @@
   "signalk-plugin-enabled-by-default": true,
   "signalk": {
     "appIcon": "icon.svg",
-    "displayName": "Tides"
+    "displayName": "Tides",
+    "screenshots": [
+      "./docs/screenshots/tides.png",
+      "./docs/screenshots/widget.png"
+    ]
   }
 }
