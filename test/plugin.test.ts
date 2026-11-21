@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, type Mock } from 'vitest';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Plugin, Position, ServerAPI } from "@signalk/server-api";
@@ -366,7 +366,10 @@ describe('plugin', () => {
 
     it('still publishes when the position cannot be cached', async () => {
       const { app, sendPosition } = buildApp();
-      vi.mocked(app.getDataDirPath).mockReturnValue('/dev/null/unwritable');
+      // A directory under a regular file can't be created on any OS.
+      const file = join(mkdtempSync(join(tmpdir(), 'signalk-tides-test-')), 'file');
+      writeFileSync(file, '');
+      vi.mocked(app.getDataDirPath).mockReturnValue(join(file, 'unwritable'));
       plugin = createPlugin(app);
       await plugin.start({}, () => {});
       await sendPosition(SF);
