@@ -1,5 +1,7 @@
 # Contributing
 
+Every change follows the org-wide [rigor rules](https://github.com/openwatersio/.github/blob/main/docs/agents/rigor.md). The first of them: when something fails or looks wrong, find the cause and fix it there instead of working around it.
+
 ## Releasing
 
 Publishing to npm runs from [release.yml](.github/workflows/release.yml) when a GitHub release is created. A person creates the release by hand: choose or create a `vX.Y.Z` tag, then fill in the title and notes.
