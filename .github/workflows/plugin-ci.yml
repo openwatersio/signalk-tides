@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   plugin-ci:
-    uses: SignalK/signalk-server/.github/workflows/plugin-ci.yml@master
+    uses: SignalK/signalk-server/.github/workflows/plugin-ci.yml@19f564f46a70c3ab3e2479b05d4847f9885abd20 # master
     with:
       # The registry runs this command too. The browser suite needs Chromium,
       # which neither has, so it runs in ci.yml.

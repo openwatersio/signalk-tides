@@ -11,11 +11,11 @@ jobs:
       id-token: write # npm trusted publishing
       contents: write # commit the version bump
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.release.target_commitish }}
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .github/mise.node24.toml # npm >= 11.5.1 for trusted publishing
           registry-url: https://registry.npmjs.org
